@@ -1,6 +1,6 @@
-# Project Name
+# Project Name : Resolve
 
-> A one-sentence description of what your project does and who it is for.
+> A product that helps SME's owners to better cater their reviews by assistance from AI by automated reviews with the supervision of managers and owners to oversee the reviews automated by AI and approve it.
 
 ---
 
