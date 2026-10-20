@@ -8,18 +8,18 @@
 
 | Field                  | Details                                     |
 | ---------------------- | ------------------------------------------- |
-| **Team Name**          | Your Team Name                              |
-| **Team Domain**        | Domain 1 / Domain 2 *(choose one)*          |
-| **SDG Track (1–17)**   | e.g. SDG 11 — Sustainable Cities and Communities |
-| **Team Leader**        | Leader Name                                 |
-| **University**         | University Name(s)                          |
-| **Number of Members**  | e.g. 4                                      |
+| **Team Name**          | sticks and stones           |
+| **Team Domain**        | Domain 2        |
+| **SDG Track (1–17)**   | SDG 8 — DECENT WORK AND ECONOMIC GROWTH |
+| **Team Leader**        | Ee Jun Hao                             |
+| **University**         | Xiamen Univeristy Malaysia                    |
+| **Number of Members**  | 2                                  |
 
 ## Links
 
 | Resource          | Link                                           |
 | ----------------- | ---------------------------------------------- |
-| GitHub Repository | https://github.com/your-username/your-project  |
+| GitHub Repository | https://github.com/ejhchesteree7-code/Resolve-SDC-HACKATHON-  |
 | Replit Project    | https://replit.com/@your-username/your-project |
 | Live Demo         | https://your-project.replit.app                |
 | RunPod Endpoint   | https://api.runpod.ai/v2/your-endpoint-id      |
@@ -32,27 +32,27 @@
 
 ### Problem
 
-Describe the real-world problem you are solving in 2–4 sentences. Who is affected, and why does it matter?
+Malaysian café and retail owners reply to customer reviews and complaints late, inconsistently, or not at all, because they are scattered across Google, WhatsApp and staff memory. Nobody is sure who is allowed to offer compensation, and recurring issues such as slow Friday-night service go unnoticed because nothing is tracked.
 
 ### Solution
 
-Explain how your project uses AI to solve the problem and what makes it valuable.
+Resolve turns every review into a tracked case: AI reads the text in BM, English or Manglish, classifies it and drafts a reply with a one-line reason, while plain rules route it to the right role. Nothing is posted or compensated until a staff member, manager or owner approves it, and every step is saved in an activity log that also surfaces recurring issues for the owner.
 
 ### Key Features
 
-- **Feature 1** — Short description.
-- **Feature 2** — Short description.
-- **Feature 3** — Short description.
+- 1. AI triage and draft: classifies sentiment, category and severity, and drafts a reply in the review’s language.
+- 2. Role-based approval: staff, manager and owner approve different actions, with compensation limits.
+- 3. Activity log and recurring-issue alerts: every action is recorded, and repeated complaints are flagged.
 
 ### Tech Stack
 
 | Layer         | Technology                   |
 | ------------- | ---------------------------- |
-| Frontend      | e.g. HTML, React             |
-| Backend       | e.g. Python, Flask / FastAPI |
-| Database      | e.g. PostgreSQL, SQLite      |
-| AI / Compute  | RunPod (GPU)                 |
-| Hosting / Dev | Replit                       |
+| Frontend      | React + Vite + Tailwind CSS  |
+| Backend       | Supabase (edge functions / server route for AI calls) |
+| Database      | Supabase Postgres            |
+| AI / Compute  | Claude API for classification and reply drafting; RunPod (GPU)            |
+| Hosting / Dev | Replit (build and run), plus Vercel or Replit deployment for the demo link            |
 
 ---
 
