@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Resolve"
+description = "A review-to-resolution workflow for Malaysian café owners. Review cases are routed to Staff, Managers, or Owners for human approval, with simulated reply posting, voucher issuance, and an audit trail."
+version = "1.0.0"
+id = "artifacts/resolve"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23145
+
+[services.development]
+run = "pnpm --filter @workspace/resolve run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/resolve", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/resolve/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23145"
+BASE_PATH = "/"

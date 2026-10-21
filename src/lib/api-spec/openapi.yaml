@@ -1,0 +1,396 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: reviews
+    description: Review resolution workflow
+  - name: activity
+    description: Audit activity
+  - name: insights
+    description: Café review insights
+security:
+  - DemoUser: []
+paths:
+  /public/outlets/{outletId}/reviews:
+    get:
+      security: []
+      operationId: listPublicReviews
+      tags: [reviews]
+      summary: Read simulated public reviews without internal case data
+      parameters:
+        - { name: outletId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: All reviews for this public demo outlet
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PublicReview" }
+        "404": { description: Unknown demo outlet }
+  /events/review-received:
+    post:
+      security: []
+      operationId: receivePublicReview
+      tags: [reviews]
+      summary: Receive a public-page review through classification and routing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublicReviewInput" }
+      responses:
+        "201":
+          description: Received review, with no internal fields
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicReview" }
+        "400": { description: Invalid review }
+        "404": { description: Unknown demo outlet }
+  /healthz:
+    get:
+      security: []
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /reviews:
+    get:
+      operationId: listReviews
+      tags: [reviews]
+      summary: List review cases
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [New, "Needs approval", "Needs owner", pending_owner, Resolved, Rejected]
+        - name: outlet
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Review cases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Review"
+    post:
+      operationId: simulateReview
+      tags: [reviews]
+      summary: Add a synthetic review
+      responses:
+        "201":
+          description: Created review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+  /reviews/{reviewId}:
+    get:
+      operationId: getReview
+      tags: [reviews]
+      summary: Get a review case
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Review detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateReview
+      tags: [reviews]
+      summary: Edit reply draft or voucher proposal
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewUpdate"
+      responses:
+        "200":
+          description: Updated review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+  /reviews/{reviewId}/approve:
+    post:
+      operationId: approveReview
+      tags: [reviews]
+      summary: Approve and simulate posting a reply
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewAction"
+      responses:
+        "200":
+          description: Resolved review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+        "403":
+          description: Role cannot approve this case
+  /reviews/{reviewId}/reject:
+    post:
+      operationId: rejectReview
+      tags: [reviews]
+      summary: Reject a review reply draft
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewRejection"
+      responses:
+        "200":
+          description: Rejected review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+  /activity:
+    get:
+      operationId: listActivity
+      tags: [activity]
+      summary: List recent activity
+      responses:
+        "200":
+          description: Activity entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Activity"
+  /insights:
+    get:
+      operationId: getInsights
+      tags: [insights]
+      summary: Get review insights
+      responses:
+        "200":
+          description: Slow service insight
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Insight"
+  /cases/{reviewId}:
+    get:
+      operationId: getCase
+      tags: [reviews]
+      summary: Get a review case (alias)
+      parameters:
+        - { name: reviewId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Review case
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Review" }
+    patch:
+      operationId: updateCase
+      tags: [reviews]
+      summary: Edit a reply or propose a voucher (alias)
+      parameters:
+        - { name: reviewId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewUpdate" }
+      responses:
+        "200":
+          description: Updated case
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Review" }
+        "403": { description: Action denied without changes }
+  /cases/{reviewId}/approve:
+    post:
+      operationId: approveCase
+      tags: [reviews]
+      summary: Approve a case using the server-side demo identity
+      parameters:
+        - { name: reviewId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewAction" }
+      responses:
+        "200":
+          description: Resolved case
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Review" }
+        "403": { description: Action denied without changes }
+  /cases/{reviewId}/reject:
+    post:
+      operationId: rejectCase
+      tags: [reviews]
+      summary: Reject a case reply (alias)
+      parameters:
+        - { name: reviewId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewRejection" }
+      responses:
+        "200":
+          description: Rejected case
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Review" }
+        "403": { description: Action denied without changes }
+components:
+  securitySchemes:
+    DemoUser:
+      type: apiKey
+      in: header
+      name: x-demo-user-id
+      description: Demo identity only. Role, tenant and outlet are loaded from users; body.role is ignored.
+  schemas:
+    PublicReview:
+      type: object
+      additionalProperties: false
+      required: [alias, rating, text, date, posted_reply]
+      properties:
+        alias: { type: string }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        text: { type: string }
+        date: { type: string, format: date-time }
+        posted_reply: { type: ["string", "null"] }
+    PublicReviewInput:
+      type: object
+      additionalProperties: false
+      required: [outletId, source, alias, rating, text]
+      properties:
+        outletId: { type: string, minLength: 1 }
+        source: { type: string, enum: [public_page] }
+        alias: { type: string, minLength: 1, maxLength: 80 }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        text: { type: string, minLength: 1, maxLength: 500 }
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Review:
+      type: object
+      required: [id, reviewer, outlet, rating, language, text, sentiment, category, severity, reason, confidence, draftReply, status, assignedRole, createdAt, missingInfo, usedFallback]
+      properties:
+        id: { type: string }
+        reviewer: { type: string }
+        outlet: { type: string }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        language: { type: string }
+        text: { type: string }
+        sentiment: { type: string, enum: [positive, neutral, negative] }
+        category: { type: string }
+        severity: { type: string, enum: [low, medium, high] }
+        reason: { type: string }
+        confidence: { type: number }
+        draftReply: { type: string }
+        status: { type: string, enum: [New, "Needs approval", "Needs owner", pending_owner, Resolved, Rejected] }
+        assignedRole: { type: string, enum: [Staff, Manager, Owner] }
+        createdAt: { type: string, format: date-time }
+        missingInfo: { type: boolean }
+        usedFallback: { type: boolean }
+        voucherAmount: { type: ["number", "null"] }
+        rejectionReason: { type: ["string", "null"] }
+        ruleFired: { type: ["string", "null"] }
+        source: { type: string, enum: [simulated, public_page] }
+    ReviewUpdate:
+      type: object
+      properties:
+        draftReply: { type: string, minLength: 1 }
+        voucherAmount: { type: ["number", "null"], minimum: 0 }
+        role: { type: string, enum: [Staff, Manager, Owner] }
+      additionalProperties: false
+    ReviewAction:
+      type: object
+      properties:
+        role: { type: string, enum: [Staff, Manager, Owner] }
+        draftReply: { type: string }
+        voucherAmount: { type: ["number", "null"], minimum: 0 }
+      additionalProperties: false
+    ReviewRejection:
+      type: object
+      required: [reason]
+      properties:
+        role: { type: string, enum: [Staff, Manager, Owner] }
+        reason: { type: string, minLength: 1 }
+      additionalProperties: false
+    Activity:
+      type: object
+      required: [id, reviewId, actor, role, action, details, createdAt]
+      properties:
+        id: { type: string }
+        reviewId: { type: string }
+        actor: { type: string }
+        role: { type: string, enum: [Staff, Manager, Owner, System] }
+        action: { type: string }
+        details: { type: string }
+        createdAt: { type: string, format: date-time }
+    Insight:
+      type: object
+      required: [title, count, period, flagged, outlet]
+      properties:
+        title: { type: string }
+        count: { type: integer }
+        period: { type: string }
+        flagged: { type: boolean }
+        outlet: { type: string }
+
