@@ -20,9 +20,10 @@
 | Resource | Link |
 | --- | --- |
 | GitHub Repository | https://github.com/ejhchesteree7-code/Resolve-SDC-HACKATHON- |
-| Replit Project | [https://resolve-cafe-review-workflow.replit.app] |
+| Replit Project | https://resolve-cafe-review-workflow.replit.app |
 | Live Demo (Vercel) | https://resolve-sdc-hackathon-src.vercel.app |
-| Customer review page (simulated) | https://resolve-sdc-hackathon-src.vercel.app/p/bangsar |
+| Customer review page, Bangsar (simulated) | https://resolve-sdc-hackathon-src.vercel.app/p/bangsar |
+| Customer review page, Mont Kiara (simulated) | https://resolve-sdc-hackathon-src.vercel.app/p/mont-kiara |
 | Slide Deck | [add link] |
 | Demo Video | [add link] |
 
@@ -67,7 +68,7 @@ The live site sets security headers (CSP, HSTS and others) and scored 125/100 (A
 - **Identity:** a "Viewing as" role switcher replaces a real login. Enforcement is real (server-side checks), the identity is not.
 - **Google Business Profile:** the real API needs Google approval, so a simulated public review page stands in for it.
 - **WhatsApp:** the private follow-up is simulated (no message leaves the app, and voucher codes are demo codes). A real version would use the WhatsApp Business Platform with approved message templates and guest opt-in, and would replace only the send step.
-- **Data:** all reviews, names and vouchers are synthetic. Time-saved figures are estimates from our own timed tests.
+- **Data:** all reviews, names and vouchers are synthetic. Time-saved figures are estimates.
 - **AI:** seeded reviews use cached drafts. To avoid API cost, the deployed demo runs new reviews in Basic mode (keyword rules and templates) unless an AI key is configured.
 
 ## Orbyte Fit and Reuse
