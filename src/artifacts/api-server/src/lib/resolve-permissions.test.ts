@@ -130,6 +130,17 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
           ]);
           assert.ok((await logs(row.id)).every(log => log.actor === owner && log.role === "Owner"));
         });
+        await t.test("WhatsApp follow-up: Staff 403, unresolved 409, resolved case logs once", async () => {
+          const open = await fixture({ severity: "low", assignedRole: "Manager" });
+          const body = { message: "Hi, sorry about the wait." };
+          assert.equal((await request(`/cases/${open.id}/followup`, staff, "POST", body)).status, 403);
+          assert.equal((await request(`/cases/${open.id}/followup`, manager, "POST", body)).status, 409);
+          assert.equal((await request(`/cases/${open.id}/followup`, manager, "POST", { message: "" })).status, 400);
+          const done = await fixture({ status: "Resolved" });
+          assert.equal((await request(`/cases/${done.id}/followup`, manager, "POST", body)).status, 200);
+          assert.deepEqual((await logs(done.id)).map(log => log.action), ["guest_followup_sent"]);
+          assert.deepEqual(await logs(open.id), []);
+        });
         await t.test("identity, outlet and tenant scopes apply to reads and writes", async () => {
           const own = await fixture();
           const second = await fixture({ outletId: otherOutlet, outlet: otherOutlet });

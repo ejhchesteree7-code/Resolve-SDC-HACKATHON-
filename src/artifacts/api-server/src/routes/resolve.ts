@@ -7,7 +7,7 @@ import {
 } from "@workspace/api-zod";
 import { activityTable, db, reviewsTable, tenantsTable, usersTable } from "@workspace/db";
 import { authorize, PermissionDenied, type User } from "../lib/resolve-permissions";
-import { CaseError, changeCase, type Store } from "../lib/resolve-cases";
+import { auditWriter, CaseError, changeCase, type Store } from "../lib/resolve-cases";
 import { receiveReview } from "../lib/resolve-received";
 import { computeInsight } from "../lib/resolve-insights";
 
@@ -96,6 +96,22 @@ export function createResolveRouter(store: Store = db): IRouter {
     if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
     const row = await changeCase(store, res.locals.user, String(req.params.reviewId), "reject", body.data);
     res.json(RejectReviewResponse.parse(toApiReview(row)));
+  });
+
+  // Simulated WhatsApp follow-up: nothing leaves the system; the send is recorded in the audit log.
+  router.post("/cases/:reviewId/followup", async (req, res): Promise<void> => {
+    const user: User = res.locals.user;
+    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+    if (!message || message.length > 600) { res.status(400).json({ error: "Message must be 1-600 characters." }); return; }
+    await store.transaction(async (tx) => {
+      const [existing] = await tx.select().from(reviewsTable).where(eq(reviewsTable.id, String(req.params.reviewId))).for("update");
+      if (!existing) throw new CaseError("Case not found.", 404);
+      authorize(user, "view", existing);
+      if (user.role === "Staff") throw new PermissionDenied("Only a Manager or Owner can message guests.");
+      if (existing.status !== "Resolved") throw new CaseError("Approve and resolve the case before messaging the guest.", 409);
+      await auditWriter(tx, existing.id, user.id, user.role)("guest_followup_sent", "Private WhatsApp follow-up sent (simulated)");
+    });
+    res.json({ ok: true, simulated: true });
   });
 
   router.get("/activity", async (_req, res): Promise<void> => {

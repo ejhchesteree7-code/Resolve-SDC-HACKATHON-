@@ -42,7 +42,8 @@ import PublicReviewsPage from '@/pages/public-reviews';
 import QRCode from 'qrcode';
 
 const queryClient = new QueryClient();
-setDemoUserId('demo-manager');
+let currentDemoUser = 'demo-manager';
+setDemoUserId(currentDemoUser);
 type Role = 'Staff' | 'Manager' | 'Owner';
 type StatusFilter = 'All' | ReviewStatus;
 
@@ -506,7 +507,7 @@ function ReviewDetail({ reviewId, role, onBack, setToast }: { reviewId: string; 
               <ApprovalStep number="04" title="Resolved" subtitle="Reply recorded in the audit trail" done={review.status === 'Resolved'} />
             </div>
           </section>
-          <GuestFollowUp review={review} voucherAmount={voucher.trim() === '' ? null : Number(voucher)} />
+          <GuestFollowUp review={review} role={role} voucherAmount={voucher.trim() === '' ? null : Number(voucher)} alreadySent={activity.some((item) => item.action === 'guest_followup_sent')} onSent={(message) => { setToast(message); void queryClient.invalidateQueries({ queryKey: getListActivityQueryKey() }); }} />
           <section className="side-card" data-testid="panel-case-activity">
             <h3>Case activity <span className="field-note">{activityQuery.isLoading ? 'Loading' : `${activity.length} events`}</span></h3>
             {activityQuery.isError ? <p className="field-note">The audit trail is temporarily unavailable.</p> : trail.length === 0 && !activityQuery.isLoading ? <p className="field-note">No recorded actions for this case yet.</p> : (
@@ -552,15 +553,52 @@ function followUpMessage(review: Review, voucherAmount: number | null) {
   return `Hi ${first}, it's ${review.outlet}. Thank you for telling us about your visit. ${amount ? `Please accept RM${amount} off your next visit (code ${code}). ` : ''}We replied to your review and wanted to say sorry personally. Reply here if you'd like to tell us more.`;
 }
 
-function GuestFollowUp({ review, voucherAmount }: { review: Review; voucherAmount: number | null }) {
+function GuestFollowUp({ review, voucherAmount, role, alreadySent, onSent }: { review: Review; voucherAmount: number | null; role: Role; alreadySent: boolean; onSent: (message: string) => void }) {
   const amount = voucherAmount != null && voucherAmount > 0 ? voucherAmount : null;
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   if (review.sentiment !== 'negative' && !amount) return null;
-  const sent = review.status === 'Resolved';
+  const resolved = review.status === 'Resolved';
+  const canSend = resolved && role !== 'Staff' && !alreadySent;
+  const send = async () => {
+    setBusy(true); setError('');
+    try {
+      const response = await fetch('/api/cases/' + review.id + '/followup', {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-demo-user-id': currentDemoUser },
+        body: JSON.stringify({ message: draft }),
+      });
+      if (!response.ok) throw new Error(((await response.json().catch(() => ({}))) as { error?: string }).error ?? 'Could not send.');
+      setOpen(false);
+      onSent('Message sent (simulated). Nothing left this demo; the send is in the case activity.');
+    } catch (err) { setError(err instanceof Error ? err.message : 'Could not send.'); }
+    finally { setBusy(false); }
+  };
   return (
     <section className="side-card" data-testid="panel-guest-followup">
-      <h3>Private follow-up <span className="field-note">{sent ? 'Sent to guest' : 'After approval'}</span></h3>
+      <h3>Private follow-up <span className="field-note">{alreadySent ? 'Sent to guest' : resolved ? 'Ready to send' : 'After approval'}</span></h3>
       <p className="field-note" style={{ margin: '0 0 10px' }}>Simulated WhatsApp message. The public reply stays on the review page; the voucher goes only to the guest.</p>
       <div className="chat-bubble" data-testid="text-guest-followup">{followUpMessage(review, amount)}</div>
+      {role === 'Staff' ? <p className="field-note" style={{ marginTop: 10 }}>Managers and owners send guest messages.</p> : (
+        <button className="button button-primary" style={{ marginTop: 10 }} disabled={!canSend} onClick={() => { setDraft(followUpMessage(review, amount)); setError(''); setOpen(true); }} data-testid="button-whatsapp-guest">
+          {alreadySent ? 'Sent on WhatsApp (simulated)' : resolved ? 'Message guest on WhatsApp' : 'Approve the case first'}
+        </button>
+      )}
+      {open && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Message guest on WhatsApp" data-testid="dialog-whatsapp">
+          <section className="modal">
+            <h3>Message {review.reviewer} on WhatsApp</h3>
+            <p className="field-note">Simulated. In production this would go through the WhatsApp Business Platform to a guest who opted in, using an approved template.</p>
+            <textarea className="text-area" rows={6} maxLength={600} value={draft} onChange={(event) => setDraft(event.target.value)} aria-label="WhatsApp message" data-testid="input-whatsapp-message" />
+            {error && <div className="inline-alert" role="alert">{error}</div>}
+            <div className="detail-actions">
+              <button className="button" onClick={() => setOpen(false)} disabled={busy}>Cancel</button>
+              <button className="button button-primary" onClick={() => void send()} disabled={busy || !draft.trim()} data-testid="button-whatsapp-send">{busy ? 'Sending…' : 'Send (simulated)'}</button>
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   );
 }
@@ -643,7 +681,8 @@ function AppContent() {
   const [toastMessage, setToastMessage] = useState('');
   const dismissToast = () => setToastMessage('');
   const switchUser = (next: Role) => {
-    setDemoUserId(`demo-${next.toLowerCase()}`);
+    currentDemoUser = `demo-${next.toLowerCase()}`;
+    setDemoUserId(currentDemoUser);
     void queryClient.cancelQueries();
     queryClient.clear();
     setToastMessage('');
