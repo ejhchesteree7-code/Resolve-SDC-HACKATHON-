@@ -44,8 +44,8 @@ Resolve turns every review into a tracked case. It classifies the text (BM, Engl
 3. **Role-gated approval enforced on the server** (Staff, Manager, Owner). Unauthorised actions return 403 and change nothing.
 4. **Append-only audit log** enforced by a database trigger (updates and deletes are rejected).
 5. **Recurring-issue insight** (for example "Slow service on Friday nights, 6 reviews").
-7. **Private guest follow-up (simulated WhatsApp):** once a case is resolved, a Manager or Owner can send the guest a private message, with an optional goodwill voucher and code that never appear in the public reply. The send is written to the audit log. Staff cannot send, and nothing is sent before a human approves.
 6. **Simulated public review page** (`/p/:outletId`) standing in for the Google Business Profile. Reviews flow in, and approved replies appear back on the page within seconds. An NFC card or QR code opens this page.
+7. **Private guest follow-up (simulated WhatsApp):** once a case is resolved, a Manager or Owner can send the guest a private message, with an optional goodwill voucher and code that never appear in the public reply. The send is written to the audit log. Staff cannot send, and nothing is sent before a human approves.
 
 ### Security
 The live site sets security headers (CSP, HSTS and others) and scored 125/100 (A+) on the MDN HTTP Observatory scan. Authorization is enforced on the server for every action, and secrets are kept in environment variables, never in the repository.
