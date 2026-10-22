@@ -40,11 +40,15 @@ Resolve turns every review into a tracked case. It classifies the text (BM, Engl
 
 ### Key Features
 1. **AI triage and draft** with strict JSON validation, an 8-second timeout, and a keyword fallback ("Basic mode") so the journey never depends on AI being available.
-2. **Rule-based routing (R1 to R6)** and voucher limits: a Manager can approve up to RM 20, and anything above escalates to the Owner.
+2. **Rule-based routing (R1 to R6)** and voucher limits: a Manager can approve up to RM 20, and anything above escalates to the Owner. High-severity cases (for example food safety) always go to the Owner, including in Basic mode.
 3. **Role-gated approval enforced on the server** (Staff, Manager, Owner). Unauthorised actions return 403 and change nothing.
 4. **Append-only audit log** enforced by a database trigger (updates and deletes are rejected).
 5. **Recurring-issue insight** (for example "Slow service on Friday nights, 6 reviews").
+7. **Private guest follow-up (simulated WhatsApp):** once a case is resolved, a Manager or Owner can send the guest a private message, with an optional goodwill voucher and code that never appear in the public reply. The send is written to the audit log. Staff cannot send, and nothing is sent before a human approves.
 6. **Simulated public review page** (`/p/:outletId`) standing in for the Google Business Profile. Reviews flow in, and approved replies appear back on the page within seconds. An NFC card or QR code opens this page.
+
+### Security
+The live site sets security headers (CSP, HSTS and others) and scored 125/100 (A+) on the MDN HTTP Observatory scan. Authorization is enforced on the server for every action, and secrets are kept in environment variables, never in the repository.
 
 ### Tech Stack
 
@@ -62,7 +66,7 @@ Resolve turns every review into a tracked case. It classifies the text (BM, Engl
 ## What Is Simulated (Honest Limits)
 - **Identity:** a "Viewing as" role switcher replaces a real login. Enforcement is real (server-side checks), the identity is not.
 - **Google Business Profile:** the real API needs Google approval, so a simulated public review page stands in for it.
-- **WhatsApp:** not built. Roadmap only.
+- **WhatsApp:** the private follow-up is simulated (no message leaves the app, and voucher codes are demo codes). A real version would use the WhatsApp Business Platform with approved message templates and guest opt-in, and would replace only the send step.
 - **Data:** all reviews, names and vouchers are synthetic. Time-saved figures are estimates from our own timed tests.
 - **AI:** seeded reviews use cached drafts. To avoid API cost, the deployed demo runs new reviews in Basic mode (keyword rules and templates) unless an AI key is configured.
 
@@ -113,8 +117,8 @@ RunPod was not used. It is optional for this challenge. Resolve's AI step is a s
 
 ## Future Improvements
 - [ ] Real authentication (Orbyte login) instead of the role switcher
-- [ ] Google Business Profile connector and WhatsApp follow-ups with consent
-- [ ] Private voucher delivery to the customer
+- [ ] Google Business Profile connector and real WhatsApp delivery with guest opt-in
+- [ ] Single-use voucher codes stored and validated at redemption
 - [ ] Shift-log cross-referencing to explain recurring issues
 
 ## Team
