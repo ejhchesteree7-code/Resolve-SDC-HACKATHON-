@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { Link, Route, Switch, useLocation } from 'wouter';
+import { Link, Route, Switch, useLocation, useRoute } from 'wouter';
 import {
   Activity as ActivityIcon,
   ArrowLeft,
@@ -38,6 +38,8 @@ import {
 } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import NotFound from '@/pages/not-found';
+import PublicReviewsPage from '@/pages/public-reviews';
+import QRCode from 'qrcode';
 
 const queryClient = new QueryClient();
 setDemoUserId('demo-manager');
@@ -215,10 +217,11 @@ function Inbox({ role, setToast }: { role: Role; setToast: (message: string) => 
             </button>
           </div>
           <InsightPanel />
+          <DemoLinks role={role} />
           <div className="filter-bar" role="tablist" aria-label="Review status filters">
             {statuses.map((status) => (
               <button key={status} role="tab" aria-selected={filter === status} className={`filter-tab ${filter === status ? 'active' : ''}`} onClick={() => setFilter(status)} data-testid={`filter-status-${status.toLowerCase().replaceAll(' ', '-')}`}>
-                {status}
+                {status === 'All' ? status : labelStatus(status)}
               </button>
             ))}
             <span className="filter-spacer" />
@@ -236,6 +239,54 @@ function Inbox({ role, setToast }: { role: Role; setToast: (message: string) => 
         </>
       ) : <ReviewDetail reviewId={selectedId} role={role} onBack={() => setSelectedId(null)} setToast={setToast} />}
     </main>
+  );
+}
+
+const demoOutlets = [
+  { id: 'bangsar', name: 'Brew & Kin — Bangsar' },
+  { id: 'mont-kiara', name: 'Brew & Kin — Mont Kiara' },
+];
+
+function DemoLinks({ role }: { role: Role }) {
+  // The server scopes this metadata to the Manager's own outlet.
+  const insight = useGetInsights();
+  if (role === 'Staff') return null;
+  const visibleOutlets = demoOutlets.filter((outlet) =>
+    role === 'Owner' || outlet.name === insight.data?.outlet,
+  );
+  if (!visibleOutlets.length) return null;
+  return (
+    <section aria-label="Demo links" data-testid="demo-links" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 18, marginBottom: 24 }}>
+      <h2 style={{ fontSize: 15, margin: '0 0 14px' }}>Demo links <span style={{ fontSize: 12, fontWeight: 400 }}>— Open a simulated public café listing</span></h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 20 }}>
+        {visibleOutlets.map((outlet) => <DemoOutletLink key={outlet.id} {...outlet} />)}
+      </div>
+    </section>
+  );
+}
+
+function DemoOutletLink({ id, name }: { id: string; name: string }) {
+  const url = `${window.location.origin}/p/${id}`;
+  const [qr, setQr] = useState<string | null>(null);
+  const [qrError, setQrError] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setQr(null);
+    setQrError(false);
+    void QRCode.toDataURL(url, { width: 100, margin: 1 }).then(
+      (value) => { if (active) setQr(value); },
+      () => { if (active) setQrError(true); },
+    );
+    return () => { active = false; };
+  }, [url]);
+  return (
+    <div data-testid={`demo-link-${id}`} style={{ display: 'flex', gap: 14, alignItems: 'center', minWidth: 0 }}>
+      {qr ? <img src={qr} alt={`QR code for ${name}`} width={100} height={100} /> : <span role="status">{qrError ? 'QR code unavailable' : 'Generating QR…'}</span>}
+      <div style={{ minWidth: 0 }}>
+        <strong style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>{name}</strong>
+        <a href={url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{url}</a>
+      </div>
+    </div>
   );
 }
 
@@ -517,15 +568,16 @@ function ActivityPage({ setToast }: { setToast: (message: string) => void }) {
 
 function AppRoutes({ role, setRole, setToast }: { role: Role; setRole: (role: Role) => void; setToast: (message: string) => void }) {
   const [location] = useLocation();
+  const [isPublic, publicParams] = useRoute('/p/:outletId');
   return (
     <ErrorBoundary resetKey={location}>
-      <Shell role={role} setRole={setRole}>
+      {isPublic ? <PublicReviewsPage outletId={publicParams.outletId} /> : <Shell role={role} setRole={setRole}>
         <Switch>
           <Route path="/"><Inbox role={role} setToast={setToast} /></Route>
           <Route path="/activity">{role === 'Staff' ? <p className="inline-alert">Staff cannot view the activity log.</p> : <ActivityPage setToast={setToast} />}</Route>
           <Route component={NotFound} />
         </Switch>
-      </Shell>
+      </Shell>}
     </ErrorBoundary>
   );
 }

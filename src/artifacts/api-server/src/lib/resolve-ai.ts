@@ -256,13 +256,15 @@ async function requestAiClassification(
   input: ReviewInput,
   onRequestComplete?: (metrics: AiRequestMetrics) => void,
 ): Promise<string> {
-  const directApiKey = process.env.AI_API_KEY;
-  const apiKey = directApiKey ?? process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const directApiKey = process.env.AI_API_KEY || undefined;
+  const apiKey = directApiKey || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
   if (!apiKey) throw new Error("No server-side AI credential is configured");
   const model = process.env.AI_MODEL || "gpt-4.1-nano";
   const client = new OpenAI({
     apiKey,
-    ...(directApiKey ? {} : { baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL }),
+    baseURL: (directApiKey
+      ? process.env.AI_BASE_URL
+      : process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) || "https://api.openai.com/v1",
     timeout: 12_000,
     maxRetries: 0,
   });
