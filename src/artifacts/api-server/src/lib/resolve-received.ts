@@ -13,7 +13,9 @@ export async function receiveReview(
   options: Parameters<typeof classifyNewReview>[1] = {},
 ) {
   const classification = await classifyNewReview(input, options);
-  const routing = routeNewReview(classification);
+  // A vague review has no actionable detail, so a human must ask the guest for more.
+  const missingInfo = classification.category === "unclear";
+  const routing = routeNewReview(classification, missingInfo);
   return store.transaction(async tx => {
     const id = `review-${randomUUID()}`;
     const voucherAmount = classification.suggestedVoucherRm > 0 ? classification.suggestedVoucherRm : null;
@@ -25,7 +27,7 @@ export async function receiveReview(
       reason: classification.reason, confidence: classification.confidence, draftReply: classification.draftReply,
       usedFallback: classification.usedFallback, voucherAmount, assignedRole: routing.assignedRole,
       status: routing.status === "Needs owner" ? "pending_owner" : routing.status,
-      ruleFired: routing.ruleFired, missingInfo: false, rejectionReason: null, createdAt: new Date(), ...v1,
+      ruleFired: routing.ruleFired, missingInfo, rejectionReason: null, createdAt: new Date(), ...v1,
     }).returning();
     const log = auditWriter(tx, id, "Resolve", "System");
     await log("review_received", `${context.source === "public_page" ? "Public page" : "Simulated"} review received from ${input.reviewer}`);

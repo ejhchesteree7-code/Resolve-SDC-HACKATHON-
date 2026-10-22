@@ -337,7 +337,8 @@ export const GetInsightsResponse = zod.object({
   "count": zod.number().int(),
   "period": zod.string(),
   "flagged": zod.boolean(),
-  "outlet": zod.string()
+  "outlet": zod.string(),
+  "action": zod.string()
 })
 
 

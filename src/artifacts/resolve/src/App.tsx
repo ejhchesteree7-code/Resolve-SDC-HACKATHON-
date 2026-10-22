@@ -101,8 +101,8 @@ function Shell({ children, role, setRole }: { children: ReactNode; role: Role; s
         </div>
         <div className="rail-bottom">
           <div className="rail-note">
-            <strong>Clear cases, thoughtfully.</strong>
-            <p>Every reply has an owner, a reason and a record.</p>
+            <strong>Built for owner-run cafés.</strong>
+            <p>Every review becomes a case with an owner, a reason and a record.</p>
           </div>
           <div className="profile-chip">
             <span className="profile-avatar">{initials(role)}</span>
@@ -216,6 +216,7 @@ function Inbox({ role, setToast }: { role: Role; setToast: (message: string) => 
               {simulate.isPending ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}Bring in a review
             </button>
           </div>
+          <GlanceStrip />
           <InsightPanel />
           <DemoLinks role={role} />
           <div className="filter-bar" role="tablist" aria-label="Review status filters">
@@ -257,7 +258,7 @@ function DemoLinks({ role }: { role: Role }) {
   if (!visibleOutlets.length) return null;
   return (
     <section aria-label="Demo links" data-testid="demo-links" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 18, marginBottom: 24 }}>
-      <h2 style={{ fontSize: 15, margin: '0 0 14px' }}>Demo links <span style={{ fontSize: 12, fontWeight: 400 }}>— Open a simulated public café listing</span></h2>
+      <h2 style={{ fontSize: 15, margin: '0 0 14px' }}>Demo links <span style={{ fontSize: 12, fontWeight: 400 }}>— Open the simulated guest page (stands in for Google)</span></h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 20 }}>
         {visibleOutlets.map((outlet) => <DemoOutletLink key={outlet.id} {...outlet} />)}
       </div>
@@ -290,6 +291,27 @@ function DemoOutletLink({ id, name }: { id: string; name: string }) {
   );
 }
 
+function GlanceStrip() {
+  const query = useListReviews();
+  const all = query.data ?? [];
+  if (query.isLoading || query.isError || all.length === 0) return null;
+  const count = (status: string) => all.filter((review) => review.status === status).length;
+  const items = [
+    { label: 'Needs approval', value: count('Needs approval'), hint: 'Manager sign-off' },
+    { label: 'Needs owner', value: count('pending_owner'), hint: 'Safety, money or large vouchers' },
+    { label: 'Resolved', value: count('Resolved'), hint: 'Reply approved and recorded' },
+  ];
+  return (
+    <section className="glance-strip" aria-label="Where cases stand" data-testid="panel-glance">
+      {items.map((item) => (
+        <div className="glance-item" key={item.label}>
+          <strong>{item.value}</strong><span>{item.label}</span><small>{item.hint}</small>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function InsightPanel() {
   const query = useGetInsights();
   if (query.isLoading) return <div className="skeleton" style={{ height: 84, marginBottom: 25 }} data-testid="loading-insight" />;
@@ -301,9 +323,10 @@ function InsightPanel() {
       <div className="insight-copy">
         <small>{insight.flagged ? 'Worth a closer look' : 'Inbox insight'} · {insight.outlet}</small>
         <strong>{insight.title}</strong>
-        <p>{insight.period} · A pattern worth addressing before the next visit.</p>
+        <p>{insight.period}</p>
+        <p className="insight-action" data-testid="text-insight-action"><b>Suggested next step:</b> {insight.action}</p>
       </div>
-      <div className="insight-count"><strong>{insight.count}</strong><span>reviews</span></div>
+      <div className="insight-count"><strong>{insight.count}</strong><span>cases</span></div>
     </section>
   );
 }

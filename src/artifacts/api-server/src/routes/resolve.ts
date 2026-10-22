@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import {
   ApproveReviewBody, ApproveReviewResponse, GetInsightsResponse, GetReviewResponse,
   ListActivityResponse, ListReviewsQueryParams, ListReviewsResponse,
@@ -9,6 +9,7 @@ import { activityTable, db, reviewsTable, tenantsTable, usersTable } from "@work
 import { authorize, PermissionDenied, type User } from "../lib/resolve-permissions";
 import { CaseError, changeCase, type Store } from "../lib/resolve-cases";
 import { receiveReview } from "../lib/resolve-received";
+import { computeInsight } from "../lib/resolve-insights";
 
 const toApiReview = (row: typeof reviewsTable.$inferSelect) => ({ ...row, createdAt: row.createdAt.toISOString() });
 const scope = (user: User) => and(
@@ -108,16 +109,14 @@ export function createResolveRouter(store: Store = db): IRouter {
   router.get("/insights", async (_req, res): Promise<void> => {
     const user: User = res.locals.user;
     authorize(user, "insights", null);
-    const outlet = user.role === "Owner" ? "Brew & Kin — Bangsar" : user.outletId;
     const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
-    const [result] = await store.select({ count: count() }).from(reviewsTable).where(and(
-      scope(user), eq(reviewsTable.category, "Slow service"), eq(reviewsTable.outletId, outlet),
-      gte(reviewsTable.createdAt, monthStart), sql`EXTRACT(DOW FROM ${reviewsTable.createdAt}) = 5`,
-    ));
-    const total = Number(result?.count ?? 0);
-    res.json(GetInsightsResponse.parse({
-      title: "Slow service on Friday nights", count: total, period: "this month", flagged: total >= 4, outlet,
-    }));
+    const rows = await store.select({
+      category: reviewsTable.category, sentiment: reviewsTable.sentiment,
+      outlet: reviewsTable.outlet, createdAt: reviewsTable.createdAt,
+    }).from(reviewsTable).where(and(scope(user), gte(reviewsTable.createdAt, monthStart)));
+    const insight = computeInsight(rows, user.role === "Owner" ? "All outlets" : user.outletId);
+    // A Manager only ever sees their own outlet, so always report it as that outlet.
+    res.json(GetInsightsResponse.parse(user.role === "Owner" ? insight : { ...insight, outlet: user.outletId }));
   });
 
   router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {

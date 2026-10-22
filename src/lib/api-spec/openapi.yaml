@@ -386,11 +386,12 @@ components:
         createdAt: { type: string, format: date-time }
     Insight:
       type: object
-      required: [title, count, period, flagged, outlet]
+      required: [title, count, period, flagged, outlet, action]
       properties:
         title: { type: string }
         count: { type: integer }
         period: { type: string }
         flagged: { type: boolean }
         outlet: { type: string }
+        action: { type: string }
 

@@ -6,8 +6,8 @@
 .pr-hero h1 { font:500 clamp(32px,6vw,52px)/1 var(--app-font-serif); letter-spacing:-1.4px; margin:0; }
 .pr-hero p { color:hsl(160 9% 40%); font-size:13px; margin:12px 0 0; max-width:440px; line-height:1.6; }
 .pr-score { display:flex; align-items:center; gap:16px; background:hsl(43 39% 98%); border:1px solid hsl(38 20% 84%); border-radius:14px; padding:16px 20px; }
-.pr-score strong { font:500 44px/1 var(--app-font-serif); color:hsl(157 35% 26%); }
-.pr-score small { display:block; font:10px var(--app-font-mono); color:hsl(160 9% 43%); margin-top:5px; }
+.pr-score strong { font:500 22px/1.1 var(--app-font-serif); color:hsl(157 35% 26%); display:block; margin-top:4px; }
+.pr-score small { display:block; font:10px var(--app-font-mono); color:hsl(160 9% 43%); text-transform:uppercase; letter-spacing:.8px; }
 .pr-stars { color:hsl(22 73% 51%); letter-spacing:2px; font-size:14px; }
 .pr-grid { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:32px; margin-top:30px; align-items:start; }
 .pr-meta { display:flex; justify-content:space-between; align-items:center; font:10px var(--app-font-mono); text-transform:uppercase; letter-spacing:.7px; color:hsl(160 9% 43%); margin-bottom:12px; gap:10px; }

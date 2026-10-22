@@ -208,6 +208,7 @@ export interface Insight {
   period: string;
   flagged: boolean;
   outlet: string;
+  action: string;
 }
 
 export type ListReviewsParams = {

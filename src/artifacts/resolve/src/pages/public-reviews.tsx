@@ -34,7 +34,7 @@ export default function PublicReviewsPage({ outletId }: { outletId: string }) {
   if (!name) {
     return (
       <div className="pr-page">
-        <div className="pr-banner">Demo listing - simulated public review page</div>
+        <div className="pr-banner">Simulated guest page · stands in for the café’s Google review page · Resolve is the team tool behind it</div>
         <main className="pr-wrap">
           <div className="pr-empty" data-testid="state-outlet-not-found">
             <h3>Listing not found</h3>
@@ -53,7 +53,6 @@ function Listing({ outletId, name }: { outletId: string; name: string }) {
   const query = useListPublicReviews(outletId, { query: { queryKey, refetchInterval: 3000, refetchIntervalInBackground: true } });
   const receive = useReceivePublicReview();
   const reviews = query.data ?? [];
-  const avg = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0;
 
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
@@ -90,19 +89,18 @@ function Listing({ outletId, name }: { outletId: string; name: string }) {
 
   return (
     <div className="pr-page">
-      <div className="pr-banner" data-testid="text-demo-label">Demo listing - simulated public review page</div>
+      <div className="pr-banner" data-testid="text-demo-label">Simulated guest page · stands in for the café’s Google review page · Resolve is the team tool behind it</div>
       <main className="pr-wrap">
         <header className="pr-hero">
           <div>
             <div className="pr-kicker">Neighbourhood café · Kuala Lumpur</div>
             <h1 data-testid="text-outlet-name">{name}</h1>
-            <p>Every review stays up, whatever the rating. When the owner answers, you will see it right under the guest's words.</p>
+            <p>Every review stays up, whatever the rating. When the team has checked a reply, it appears right under the guest's words.</p>
           </div>
-          <div className="pr-score" aria-label={`Average rating ${avg.toFixed(1)} out of 5 from ${reviews.length} reviews`}>
-            <strong data-testid="text-average-rating">{reviews.length ? avg.toFixed(1) : '–'}</strong>
+          <div className="pr-score" aria-label={`${reviews.length} reviews on this page`}>
             <div>
-              <span className="pr-stars" aria-hidden="true">{stars(avg)}</span>
-              <small data-testid="text-public-review-count">{reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}</small>
+              <small>Guest page</small>
+              <strong data-testid="text-public-review-count">{reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}</strong>
             </div>
           </div>
         </header>
@@ -153,7 +151,7 @@ function Listing({ outletId, name }: { outletId: string; name: string }) {
           </section>
 
           <form className="pr-form" onSubmit={(e) => void submit(e)} noValidate aria-labelledby="pr-form-title">
-            <h2 id="pr-form-title">Write a review</h2>
+            <h2 id="pr-form-title">Leave a review</h2>
             <p>Tell us how it went. Honest notes help the team get better.</p>
             <div className="pr-label" id="pr-rating-label"><span>Your rating</span><span className="pr-count">{rating ? `${rating} / 5` : 'Pick one'}</span></div>
             <div className="pr-rate" role="radiogroup" aria-labelledby="pr-rating-label">
@@ -172,7 +170,7 @@ function Listing({ outletId, name }: { outletId: string; name: string }) {
             </div>
           </form>
         </div>
-        <p className="pr-foot">Fictional café. Reviews on this page are simulated for demonstration.</p>
+        <p className="pr-foot">Fictional café. This page is a simulated stand-in for a Google review page, used to show how a reply reaches the guest.</p>
       </main>
     </div>
   );
