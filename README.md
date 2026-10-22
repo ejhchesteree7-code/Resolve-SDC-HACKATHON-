@@ -1,195 +1,140 @@
 # Project Name : Resolve
 
-> A product that helps SME's owners to better cater their reviews by assistance from AI by automated reviews with the supervision of managers and owners to oversee the reviews automated by AI and approve it.
+> A review-to-resolution workflow for Malaysian café and retail owners. AI drafts and classifies, plain rules route, and a human with the right role approves.
 
 ---
 
 ## Team Information
 
-| Field                  | Details                                     |
-| ---------------------- | ------------------------------------------- |
-| **Team Name**          | sticks and stones           |
-| **Team Domain**        | Domain 2        |
-| **SDG Track (1–17)**   | SDG 8 — DECENT WORK AND ECONOMIC GROWTH |
-| **Team Leader**        | Ee Jun Hao                             |
-| **University**         | Xiamen Univeristy Malaysia                    |
-| **Number of Members**  | 2                                  |
+| Field | Details |
+| --- | --- |
+| **Team Name** | sticks and stones |
+| **Team Domain** | Domain 2 |
+| **SDG Track (1–17)** | SDG 8: Decent Work and Economic Growth |
+| **Team Leader** | Ee Jun Hao |
+| **University** | Xiamen University Malaysia |
+| **Number of Members** | 2 |
 
 ## Links
 
-| Resource          | Link                                           |
-| ----------------- | ---------------------------------------------- |
-| GitHub Repository | https://github.com/ejhchesteree7-code/Resolve-SDC-HACKATHON-  |
-| Replit Project    | https://replit.com/@your-username/your-project |
-| Live Demo         | https://your-project.replit.app                |
-| RunPod Endpoint   | https://api.runpod.ai/v2/your-endpoint-id      |
-| Slide Deck        | https://example.com/slides                     |
-| Demo Video        | https://example.com/demo-video                 |
+| Resource | Link |
+| --- | --- |
+| GitHub Repository | https://github.com/ejhchesteree7-code/Resolve-SDC-HACKATHON- |
+| Replit Project | [https://resolve-cafe-review-workflow.replit.app] |
+| Live Demo (Vercel) | https://resolve-sdc-hackathon-src.vercel.app |
+| Customer review page (simulated) | https://resolve-sdc-hackathon-src.vercel.app/p/bangsar |
+| Slide Deck | [add link] |
+| Demo Video | [add link] |
 
 ---
 
 ## Overview
 
 ### Problem
-
-Malaysian café and retail owners reply to customer reviews and complaints late, inconsistently, or not at all, because they are scattered across Google, WhatsApp and staff memory. Nobody is sure who is allowed to offer compensation, and recurring issues such as slow Friday-night service go unnoticed because nothing is tracked.
+Malaysian café and retail owners reply to customer reviews late, inconsistently, or not at all, because reviews are scattered across Google, WhatsApp and staff memory. Nobody is sure who may offer compensation, and recurring issues such as slow Friday-night service go unnoticed.
 
 ### Solution
+Resolve turns every review into a tracked case. It classifies the text (BM, English or Manglish), drafts a reply with a one-line reason, and routes the case to the right role with plain rules. Nothing is posted or compensated until a person with the right role approves it. Every step is stored in an append-only activity log, and recurring issues are surfaced to the owner.
 
-Resolve turns every review into a tracked case: AI reads the text in BM, English or Manglish, classifies it and drafts a reply with a one-line reason, while plain rules route it to the right role. Nothing is posted or compensated until a staff member, manager or owner approves it, and every step is saved in an activity log that also surfaces recurring issues for the owner.
+**Design principle:** it is a governed workflow with AI inside one step, not a chatbot. Routing, permissions and voucher limits are plain, explainable rules.
 
 ### Key Features
-
-- 1. AI triage and draft: classifies sentiment, category and severity, and drafts a reply in the review’s language.
-- 2. Role-based approval: staff, manager and owner approve different actions, with compensation limits.
-- 3. Activity log and recurring-issue alerts: every action is recorded, and repeated complaints are flagged.
+1. **AI triage and draft** with strict JSON validation, an 8-second timeout, and a keyword fallback ("Basic mode") so the journey never depends on AI being available.
+2. **Rule-based routing (R1 to R6)** and voucher limits: a Manager can approve up to RM 20, and anything above escalates to the Owner.
+3. **Role-gated approval enforced on the server** (Staff, Manager, Owner). Unauthorised actions return 403 and change nothing.
+4. **Append-only audit log** enforced by a database trigger (updates and deletes are rejected).
+5. **Recurring-issue insight** (for example "Slow service on Friday nights, 6 reviews").
+6. **Simulated public review page** (`/p/:outletId`) standing in for the Google Business Profile. Reviews flow in, and approved replies appear back on the page within seconds. An NFC card or QR code opens this page.
 
 ### Tech Stack
 
-| Layer         | Technology                   |
-| ------------- | ---------------------------- |
-| Frontend      | React + Vite + Tailwind CSS  |
-| Backend       | Supabase (edge functions / server route for AI calls) |
-| Database      | Supabase Postgres            |
-| AI / Compute  | Claude API for classification and reply drafting; RunPod (GPU)            |
-| Hosting / Dev | Replit (build and run), plus Vercel or Replit deployment for the demo link            |
+| Layer | Technology |
+| --- | --- |
+| Frontend | React + Vite + Tailwind CSS |
+| Backend | Node / Express API, deployed as a Vercel serverless function |
+| Database | Supabase Postgres (RLS on with no public policies; the server connects through a pooled connection string) |
+| AI | OpenAI-compatible model for classification and drafting (optional), with a built-in keyword fallback |
+| Build | Replit (development with Replit Agent) |
+| Hosting | Vercel |
 
 ---
 
-## Project Structure
+## What Is Simulated (Honest Limits)
+- **Identity:** a "Viewing as" role switcher replaces a real login. Enforcement is real (server-side checks), the identity is not.
+- **Google Business Profile:** the real API needs Google approval, so a simulated public review page stands in for it.
+- **WhatsApp:** not built. Roadmap only.
+- **Data:** all reviews, names and vouchers are synthetic. Time-saved figures are estimates from our own timed tests.
+- **AI:** seeded reviews use cached drafts. To avoid API cost, the deployed demo runs new reviews in Basic mode (keyword rules and templates) unless an AI key is configured.
 
-```
-.
-├── docs/                    # Screenshots, diagrams
-├── runpod/
-│   └── handler.py           # RunPod serverless handler (GPU workload)
-├── src/
-│   ├── main.py              # Application entry point
-│   └── utils.py             # Helper functions
-├── submission/              # Required submission documents
-│   ├── REPLIT PROOF OF USE.pdf
-│   ├── RUNPOD PROOF OF USE.pdf
-│   └── Submission Template SDC Hackathon.pdf
-├── tests/
-│   └── test_utils.py        # Unit tests
-├── .env.example             # Example environment variables
-├── .gitignore
-├── .replit                  # Replit run configuration
-├── LICENSE
-├── requirements.txt         # Python dependencies
-└── README.md
-```
+## Orbyte Fit and Reuse
+Tenant settings (outlets, roles, voucher limit, categories) are data, so a salon, clinic or retail shop can reuse the same workflow by changing settings only. Reviews enter through one event (`POST /events/review-received`), so any channel (NFC, QR, Google Business Profile, WhatsApp) can plug in.
 
-### Architecture
-
-```
-User ──► Replit (App / API) ──► RunPod Endpoint (GPU model)
-                │
-                └──► Response returned to user
-```
+## Privacy (PDPA)
+Only an alias and the review text are collected. Access is limited by role, every action is logged, no customer data is used for model training, and no reply is sent without human approval. Vouchers are service recovery and are never tied to posting, editing or removing a public review.
 
 ---
 
 ## How to Run
 
-### Option 1 — Run on Replit (Recommended)
-
-1. Open the [Replit Project](https://replit.com/@your-username/your-project), or import this repository via **Create Repl → Import from GitHub**.
-2. Open the **Secrets** tab (🔒) and add the variables listed in `.env.example`:
-   - `RUNPOD_API_KEY`
-   - `RUNPOD_ENDPOINT_ID`
-3. Click **Run**. Replit uses the `.replit` file to start `python src/main.py`.
-
-### Option 2 — Run Locally
-
 ```bash
-# 1. Clone the repository
-git clone https://github.com/your-username/your-project.git
-cd your-project
-
-# 2. Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Configure environment variables
-cp .env.example .env            # then fill in your values
-
-# 5. Run the app
-python src/main.py
+git clone https://github.com/ejhchesteree7-code/Resolve-SDC-HACKATHON-.git
+cd Resolve-SDC-HACKATHON-/src
+cp .env.example .env     # fill in DATABASE_URL (and optionally AI_API_KEY)
+pnpm install
+pnpm run build:vercel
 ```
 
-### Run Tests
+**Database:** on an empty Postgres (for example a Supabase project), run `src/lib/db/schema.sql` and then `src/lib/db/seed.sql`, once each.
 
-```bash
-python -m unittest discover tests
-```
+**Environment variables** (see `.env.example`): `DATABASE_URL`, `AI_API_KEY` (optional), `AI_MODEL`, `AI_DISABLED`. Never commit real values.
+
+**Live demo:** open the Live Demo link, switch "Viewing as" to Owner, and use "Demo links" to open the customer review page.
 
 ---
 
 ## How We Use Replit *(Required)*
-
-Describe how your team used Replit. For example:
-
-- **Development:** Collaborative coding in a shared Repl using Multiplayer.
-- **Hosting:** The app is deployed with Replit Deployments at the Live Demo link above.
-- **Secrets:** API keys are stored in Replit Secrets, never in the code.
+- **Development:** the whole app was built with Replit Agent: the React frontend, the Express API, the database schema, the automated tests and the security hardening.
+- **Secrets:** API keys were kept in Replit Secrets, never in code.
+- **Deployment:** the final demo is hosted on Vercel with Supabase. The Replit deployment remains as a backup.
 
 📄 Proof of use: [`submission/REPLIT PROOF OF USE.pdf`](submission/REPLIT%20PROOF%20OF%20USE.pdf)
 
-## How We Use RunPod *(Required)*
-
-Describe how your team used RunPod. For example:
-
-- **Workload:** Model inference (e.g. text generation, image processing) runs on a RunPod GPU.
-- **Setup:** `runpod/handler.py` is deployed as a **RunPod Serverless Endpoint**.
-- **Integration:** The Replit app sends requests to the endpoint using `RUNPOD_API_KEY` and `RUNPOD_ENDPOINT_ID`.
-
-Example request:
-
-```bash
-curl -X POST https://api.runpod.ai/v2/$RUNPOD_ENDPOINT_ID/runsync \
-  -H "Authorization: Bearer $RUNPOD_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"input": {"prompt": "Hello"}}'
-```
-
-📄 Proof of use: [`submission/RUNPOD PROOF OF USE.pdf`](submission/RUNPOD%20PROOF%20OF%20USE.pdf)
+## How We Use RunPod
+RunPod was not used. It is optional for this challenge. Resolve's AI step is a single short classification and drafting call, and plain rules plus a fallback handle the rest, so GPU hosting would add cost and a new point of failure without improving the demo.
 
 ---
 
 ## Challenges & Learnings
-
-- What challenges did you face, and how did you overcome them?
-- What did your team learn?
+- **Live AI failed at first:** the model echoed the list of allowed values instead of choosing one. We kept the strict validation, fixed the prompt, and added a keyword fallback so the demo never depends on AI.
+- **Moving from Replit to Vercel and Supabase:** Vercel type-checked the API and failed, so we pre-bundled the API with esbuild. Replit's built-in AI proxy does not exist outside Replit.
+- **Database migration conflicts** when publishing on Replit, solved by creating new tables and rebuilding from a portable `schema.sql` and `seed.sql`.
+- **Google Business Profile API access takes weeks**, so we built a simulated review page to show the full loop.
+- **Learning:** keep AI to the text-understanding step and use rules for everything that must be predictable and auditable.
 
 ## Future Improvements
-
-- [ ] Improvement 1
-- [ ] Improvement 2
+- [ ] Real authentication (Orbyte login) instead of the role switcher
+- [ ] Google Business Profile connector and WhatsApp follow-ups with consent
+- [ ] Private voucher delivery to the customer
+- [ ] Shift-log cross-referencing to explain recurring issues
 
 ## Team
 
-| Name        | Role                | GitHub                                   |
-| ----------- | ------------------- | ---------------------------------------- |
-| Member Name | Team Lead / Backend | [@username](https://github.com/username) |
-| Member Name | Frontend            | [@username](https://github.com/username) |
-| Member Name | AI / RunPod         | [@username](https://github.com/username) |
+| Name | Role | GitHub |
+| --- | --- | --- |
+| Ee Jun Hao | Team Lead / Tech | [@ejhchesteree7-code](https://github.com/ejhchesteree7-code) |
+| [Adeetheyaa Ram A/L Sailesh Kumar] | Pitch deck, video and testing | [@username](https://github.com/username) |
 
 ---
 
 ## Submission Checklist
 
-- [ ] Team name, domain (Domain 1 / Domain 2) and SDG track filled in
+- [x] Team name, domain and SDG track filled in
 - [ ] Slide deck link added
 - [ ] Demo video link added
-- [ ] Replit used, with proof of use in `submission/`
-- [ ] RunPod used, with proof of use in `submission/`
-- [ ] Submission template completed in `submission/`
-- [ ] "How to Run" steps verified
-- [ ] No API keys or secrets committed to the repository
+- [x] Replit used, with proof of use in `submission/`
+- [x] Submission template completed in `submission/`
+- [x] "How to Run" steps written
+- [x] No API keys or secrets committed to the repository
 
 ## License
 
