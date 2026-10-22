@@ -298,7 +298,7 @@ function GlanceStrip() {
   const count = (status: string) => all.filter((review) => review.status === status).length;
   const items = [
     { label: 'Needs approval', value: count('Needs approval'), hint: 'Manager sign-off' },
-    { label: 'Needs owner', value: count('pending_owner'), hint: 'Safety, money or large vouchers' },
+    { label: 'Needs owner', value: count('pending_owner') + count('Needs owner'), hint: 'Safety, money or large vouchers' },
     { label: 'Resolved', value: count('Resolved'), hint: 'Reply approved and recorded' },
   ];
   return (
@@ -506,6 +506,7 @@ function ReviewDetail({ reviewId, role, onBack, setToast }: { reviewId: string; 
               <ApprovalStep number="04" title="Resolved" subtitle="Reply recorded in the audit trail" done={review.status === 'Resolved'} />
             </div>
           </section>
+          <GuestFollowUp review={review} voucherAmount={voucher.trim() === '' ? null : Number(voucher)} />
           <section className="side-card" data-testid="panel-case-activity">
             <h3>Case activity <span className="field-note">{activityQuery.isLoading ? 'Loading' : `${activity.length} events`}</span></h3>
             {activityQuery.isError ? <p className="field-note">The audit trail is temporarily unavailable.</p> : trail.length === 0 && !activityQuery.isLoading ? <p className="field-note">No recorded actions for this case yet.</p> : (
@@ -529,6 +530,38 @@ function ReviewDetail({ reviewId, role, onBack, setToast }: { reviewId: string; 
         </div>
       )}
     </>
+  );
+}
+
+function voucherCode(reviewId: string) {
+  let hash = 0;
+  for (const char of reviewId) hash = (hash * 31 + char.charCodeAt(0)) % 1679616;
+  return `RK-${hash.toString(36).toUpperCase().padStart(4, '0').slice(-4)}`;
+}
+
+function followUpMessage(review: Review, voucherAmount: number | null) {
+  const first = review.reviewer.split(/\s+/)[0] || 'there';
+  const amount = voucherAmount != null && voucherAmount > 0 ? voucherAmount : null;
+  const code = voucherCode(review.id);
+  if (review.language === 'Malay') {
+    return `Hai ${first}, ini ${review.outlet}. Terima kasih kerana berkongsi tentang lawatan anda. ${amount ? `Sila terima diskaun RM${amount} untuk lawatan seterusnya (kod ${code}). ` : ''}Kami sudah membalas ulasan anda dan ingin memohon maaf secara peribadi. Balas di sini jika anda mahu berkongsi lebih lanjut.`;
+  }
+  if (review.language === 'Manglish') {
+    return `Hi ${first}, this is ${review.outlet}. Thanks for telling us about your visit. ${amount ? `Here's RM${amount} off your next visit (code ${code}). ` : ''}We replied to your review and wanted to say sorry personally. Boleh reply here if you want to share more.`;
+  }
+  return `Hi ${first}, it's ${review.outlet}. Thank you for telling us about your visit. ${amount ? `Please accept RM${amount} off your next visit (code ${code}). ` : ''}We replied to your review and wanted to say sorry personally. Reply here if you'd like to tell us more.`;
+}
+
+function GuestFollowUp({ review, voucherAmount }: { review: Review; voucherAmount: number | null }) {
+  const amount = voucherAmount != null && voucherAmount > 0 ? voucherAmount : null;
+  if (review.sentiment !== 'negative' && !amount) return null;
+  const sent = review.status === 'Resolved';
+  return (
+    <section className="side-card" data-testid="panel-guest-followup">
+      <h3>Private follow-up <span className="field-note">{sent ? 'Sent to guest' : 'After approval'}</span></h3>
+      <p className="field-note" style={{ margin: '0 0 10px' }}>Simulated WhatsApp message. The public reply stays on the review page; the voucher goes only to the guest.</p>
+      <div className="chat-bubble" data-testid="text-guest-followup">{followUpMessage(review, amount)}</div>
+    </section>
   );
 }
 

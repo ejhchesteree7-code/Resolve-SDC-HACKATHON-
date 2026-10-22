@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import {
   ApproveReviewBody, ApproveReviewResponse, GetInsightsResponse, GetReviewResponse,
   ListActivityResponse, ListReviewsQueryParams, ListReviewsResponse,
@@ -46,7 +46,10 @@ export function createResolveRouter(store: Store = db): IRouter {
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
     const rows = await store.select().from(reviewsTable).where(and(
       scope(user),
-      parsed.data.status ? eq(reviewsTable.status, parsed.data.status) : undefined,
+      // Seeded rows store "Needs owner"; rows created by the app store "pending_owner".
+      parsed.data.status === "pending_owner" || parsed.data.status === "Needs owner"
+        ? inArray(reviewsTable.status, ["pending_owner", "Needs owner"])
+        : parsed.data.status ? eq(reviewsTable.status, parsed.data.status) : undefined,
       parsed.data.outlet ? eq(reviewsTable.outlet, parsed.data.outlet) : undefined,
     )).orderBy(desc(reviewsTable.createdAt));
     res.json(ListReviewsResponse.parse(rows.map(toApiReview)));
