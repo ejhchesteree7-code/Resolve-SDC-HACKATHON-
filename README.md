@@ -42,7 +42,7 @@ Resolve turns every review into a tracked case. It classifies the text (BM, Engl
 **Design principle:** it is a governed workflow with AI inside one step, not a chatbot. Routing, permissions and voucher limits are plain, explainable rules.
 
 ### Key Features
-1. **AI triage and draft** with strict JSON validation, an 8-second timeout, and a keyword fallback ("Basic mode") so the journey never depends on AI being available.
+1. **AI triage and draft** with strict JSON validation, a 12-second timeout, and a keyword fallback ("Basic mode") so the journey never depends on AI being available.
 2. **Rule-based routing (R1 to R6)** and voucher limits: a Manager can approve up to RM 20, and anything above escalates to the Owner. High-severity cases (for example food safety) always go to the Owner, including in Basic mode.
 3. **Role-gated approval enforced on the server** (Staff, Manager, Owner). Unauthorised actions return 403 and change nothing.
 4. **Append-only audit log** enforced by a database trigger (updates and deletes are rejected).
