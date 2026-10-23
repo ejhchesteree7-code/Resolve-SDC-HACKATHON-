@@ -26,7 +26,7 @@
 | Customer review page, Mont Kiara (simulated) | https://resolve-sdc-hackathon-src.vercel.app/p/mont-kiara |
 | Preliminary Project Proposal (PDF) | [submission/SDC2026_sticksandstones_Preliminary.pdf](submission/SDC2026_sticksandstones_Preliminary.pdf) |
 | Technical Tools Declaration (PDF) | [submission/SDC2026_sticksandstones_TechDeclaration.pdf](submission/SDC2026_sticksandstones_TechDeclaration.pdf) |
-| Slide Deck | [add link] |
+| Slide Deck | [https://github.com/ejhchesteree7-code/Resolve-SDC-HACKATHON-/blob/main/submission/SDC_sticksandstones_slidedeck.pdf] |
 | Demo Video | [add link] |
 
 ---
