@@ -27,7 +27,7 @@
 | Preliminary Project Proposal (PDF) | [submission/SDC2026_sticksandstones_Preliminary.pdf](submission/SDC2026_sticksandstones_Preliminary.pdf) |
 | Technical Tools Declaration (PDF) | [submission/SDC2026_sticksandstones_TechDeclaration.pdf](submission/SDC2026_sticksandstones_TechDeclaration.pdf) |
 | Slide Deck | [https://github.com/ejhchesteree7-code/Resolve-SDC-HACKATHON-/blob/main/submission/SDC_sticksandstones_slidedeck.pdf] |
-| Demo Video | [https://youtu.be/30II16Fx6RE] |
+| Demo Video | [https://youtu.be/30II16Fx6RE](https://youtu.be/30II16Fx6RE) |
 
 ---
 
