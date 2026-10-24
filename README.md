@@ -27,7 +27,7 @@
 | Preliminary Project Proposal (PDF) | [submission/SDC2026_sticksandstones_Preliminary.pdf](submission/SDC2026_sticksandstones_Preliminary.pdf) |
 | Technical Tools Declaration (PDF) | [submission/SDC2026_sticksandstones_TechDeclaration.pdf](submission/SDC2026_sticksandstones_TechDeclaration.pdf) |
 | Slide Deck | [https://github.com/ejhchesteree7-code/Resolve-SDC-HACKATHON-/blob/main/submission/SDC_sticksandstones_slidedeck.pdf] |
-| Demo Video | [add link] |
+| Demo Video | [https://youtu.be/30II16Fx6RE] |
 
 ---
 
@@ -139,16 +139,16 @@ RunPod was not used. It is optional for this challenge. Resolve's AI step is a s
 | Name | Role | GitHub |
 | --- | --- | --- |
 | Ee Jun Hao | Team Lead / Tech | [@ejhchesteree7-code](https://github.com/ejhchesteree7-code) |
-| [Adeetheyaa Ram A/L Sailesh Kumar] | Pitch deck, video and testing | [@username](https://github.com/username) |
+| [Adeetheyaa Ram A/L Sailesh Kumar] | Pitch deck, video and testing | [@adeetheya397-afk](https://github.com/adeetheya397-afk) |
 
 ---
 
 ## Submission Checklist
 
 - [x] Team name, domain and SDG track filled in
-- [ ] Preliminary Proposal and Technical Tools Declaration final PDFs uploaded to `submission/`
-- [ ] Slide deck link added
-- [ ] Demo video link added
+- [x] Preliminary Proposal and Technical Tools Declaration final PDFs uploaded to `submission/`
+- [x] Slide deck link added
+- [x] Demo video link added
 - [x] Replit used, with proof of use in `submission/`
 - [x] Submission template completed in `submission/`
 - [x] "How to Run" steps written
