@@ -407,8 +407,8 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
           const before = await (await fetch(base + "/reviews", { headers: { authorization: `Bearer ${body.token}` } })).json() as unknown[];
           assert.equal(before.length, 0);
           // A guest scans the salon's QR and leaves a hygiene complaint.
-          const info = await (await fetch(`${base}/public/outlets/${body.outlet.slug}`)).json() as { business: string; businessType: string };
-          assert.deepEqual(info, { outlet: "Glow & Co — SS15", business: "Glow & Co Salon", businessType: "salon" });
+          const info = await (await fetch(`${base}/public/outlets/${body.outlet.slug}`)).json() as { business: string; businessType: string; typeLabel: string };
+          assert.deepEqual(info, { outlet: "Glow & Co — SS15", business: "Glow & Co Salon", businessType: "salon", typeLabel: "Hair salon" });
           const guest = await post("/events/review-received", {
             outletId: body.outlet.slug, source: "public_page", alias: "Kavitha", rating: 1,
             text: "Scissors were not cleaned between customers.",

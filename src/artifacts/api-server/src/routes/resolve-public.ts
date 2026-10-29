@@ -5,6 +5,7 @@ import { ListPublicReviewsResponse, ReceivePublicReviewBody, ReceivePublicReview
 import { receiveReview } from "../lib/resolve-received";
 import type { Store } from "../lib/resolve-cases";
 import type { classifyNewReview } from "../lib/resolve-ai";
+import { profileFor } from "../lib/resolve-business-types";
 
 export function createPublicRouter(
   store: Store = db, classificationOptions: Parameters<typeof classifyNewReview>[1] = {},
@@ -42,7 +43,10 @@ export function createPublicRouter(
     }).from(outletsTable).innerJoin(tenantsTable, eq(outletsTable.tenantId, tenantsTable.id))
       .where(eq(outletsTable.slug, String(req.params.outletId)));
     if (!row) { res.status(404).json({ error: "Demo outlet not found." }); return; }
-    res.json({ outlet: row.outlet, business: row.business ?? row.outlet, businessType: row.businessType });
+    res.json({
+      outlet: row.outlet, business: row.business ?? row.outlet, businessType: row.businessType,
+      typeLabel: profileFor(row.businessType).label,
+    });
   });
 
   router.post("/events/review-received", async (req, res): Promise<void> => {

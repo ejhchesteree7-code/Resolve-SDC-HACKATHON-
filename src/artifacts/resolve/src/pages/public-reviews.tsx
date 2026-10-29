@@ -8,7 +8,14 @@ import {
 } from '@workspace/api-client-react';
 import './public-reviews.css';
 
-type OutletInfo = { outlet: string; business: string; businessType: string };
+type OutletInfo = { outlet: string; business: string; businessType: string; typeLabel?: string };
+
+/** "Brew & Kin — Bangsar" under "Brew & Kin" reads as just "Bangsar". */
+function outletLabel(outlet: string, business: string) {
+  const prefix = business.trim().toLowerCase();
+  const short = outlet.toLowerCase().startsWith(prefix) ? outlet.slice(business.trim().length).replace(/^\s*[—–\-·:,]\s*/, '') : outlet;
+  return short.trim() || outlet;
+}
 
 const keyOf = (r: PublicReview) => `${r.alias}|${r.rating}|${r.text}|${r.date}`;
 
@@ -52,10 +59,12 @@ export default function PublicReviewsPage({ outletId }: { outletId: string }) {
       </div>
     );
   }
-  return <Listing outletId={outletId} name={info.outlet} kind={info.businessType === 'salon' ? 'hair salon' : 'café'} />;
+  const typeLabel = info.typeLabel ?? (info.businessType === 'salon' ? 'Hair salon' : 'Café');
+  return <Listing outletId={outletId} business={info.business} outlet={outletLabel(info.outlet, info.business)} typeLabel={typeLabel} />;
 }
 
-function Listing({ outletId, name, kind }: { outletId: string; name: string; kind: string }) {
+function Listing({ outletId, business, outlet, typeLabel }: { outletId: string; business: string; outlet: string; typeLabel: string }) {
+  const kind = typeLabel.toLowerCase();
   const queryClient = useQueryClient();
   const queryKey = getListPublicReviewsQueryKey(outletId);
   const query = useListPublicReviews(outletId, { query: { queryKey, refetchInterval: 3000, refetchIntervalInBackground: true } });
@@ -101,8 +110,8 @@ function Listing({ outletId, name, kind }: { outletId: string; name: string; kin
       <main className="pr-wrap">
         <header className="pr-hero">
           <div>
-            <div className="pr-kicker">Neighbourhood {kind} · Kuala Lumpur</div>
-            <h1 data-testid="text-outlet-name">{name}</h1>
+            <div className="pr-kicker" data-testid="text-outlet-kicker">{typeLabel} · {outlet}</div>
+            <h1 data-testid="text-outlet-name">{business}</h1>
             <p>Every review stays up, whatever the rating. When the team has checked a reply, it appears right under the guest's words.</p>
           </div>
           <div className="pr-score" aria-label={`${reviews.length} reviews on this page`}>
