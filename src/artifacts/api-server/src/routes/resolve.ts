@@ -173,7 +173,8 @@ export function createResolveRouter(store: Store = db): IRouter {
   router.get("/insights", async (_req, res): Promise<void> => {
     const user: User = res.locals.user;
     authorize(user, "insights", null);
-    const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+    // A rolling 30-day window, so the insight never empties out on the 1st of a month.
+    const monthStart = new Date(Date.now() - 30 * 24 * 3_600_000);
     const rows = await store.select({
       category: reviewsTable.category, sentiment: reviewsTable.sentiment,
       outlet: reviewsTable.outlet, createdAt: reviewsTable.createdAt,

@@ -53,7 +53,7 @@ const fallbackAction = "Review these cases together and agree one fix with the t
 const ignored = new Set(["Praise", "Unclear", "Other"]);
 
 /**
- * Finds the complaint that keeps coming up this month: the most common negative
+ * Finds the complaint that keeps coming up in the last 30 days: the most common negative
  * category for one outlet, and the weekday it clusters on when there is a clear one.
  */
 export function computeInsight(rows: InsightRow[], fallbackOutlet: string): Insight {
@@ -69,9 +69,9 @@ export function computeInsight(rows: InsightRow[], fallbackOutlet: string): Insi
   }
   if (!best.length) {
     return {
-      title: "No repeating complaints this month",
+      title: "No repeating complaints in the last 30 days",
       count: 0,
-      period: "this month",
+      period: "last 30 days",
       flagged: false,
       outlet: fallbackOutlet,
       action: "Keep replying quickly. We will flag a pattern as soon as one appears.",
@@ -91,8 +91,8 @@ export function computeInsight(rows: InsightRow[], fallbackOutlet: string): Insi
       : best.length >= 2 ? `${category} keeps coming up` : `${category}: one complaint to look at`,
     count: best.length,
     period: clustered
-      ? `${best.length} complaints this month, ${peakCount} on ${weekdays[peakDay]}`
-      : `${best.length} ${best.length === 1 ? "complaint" : "complaints"} this month`,
+      ? `${best.length} complaints in 30 days, ${peakCount} on ${weekdays[peakDay]}`
+      : `${best.length} ${best.length === 1 ? "complaint" : "complaints"} in 30 days`,
     flagged: best.length >= 3,
     outlet: best[0]!.outlet,
     action: actions[category] ?? fallbackAction,

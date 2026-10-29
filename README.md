@@ -112,7 +112,7 @@ pnpm install
 pnpm run build:vercel
 ```
 
-**Database:** on an empty Postgres (for example a Supabase project), run `src/lib/db/schema.sql` and then `src/lib/db/seed.sql`, then the files in `src/lib/db/migrations/` in number order (`0001` to `0006`). Each migration is safe to run twice.
+**Database:** on an empty Postgres (for example a Supabase project), run `src/lib/db/schema.sql` and then `src/lib/db/seed.sql`, then the files in `src/lib/db/migrations/` in number order (`0001` to `0006`). Each migration is safe to run twice. To give the Brew & Kin demo a fresh, dated-today inbox (for example on demo day), run `src/lib/db/demo-reset.sql`; it only touches the synthetic demo business.
 
 **Environment variables** (see `src/.env.example`): `DATABASE_URL`, `SESSION_SECRET` (recommended), `AI_API_KEY`, `AI_BASE_URL` and `AI_MODEL` (optional, any OpenAI-compatible provider), `AI_DISABLED`. Never commit real values.
 
