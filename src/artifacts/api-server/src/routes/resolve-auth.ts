@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { randomBytes, randomInt } from "node:crypto";
-import { eq, inArray, like, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, like, sql } from "drizzle-orm";
 import { db, outletsTable, tenantsTable, usersTable } from "@workspace/db";
 import type { Store } from "../lib/resolve-cases";
 import { bearerToken, hashPassword, signSession, verifyPassword, verifySession } from "../lib/resolve-auth";
@@ -70,6 +70,7 @@ const profileFields = {
   id: usersTable.id, name: usersTable.name, email: usersTable.email, role: usersTable.role,
   outletId: usersTable.outletId, tenantId: usersTable.tenantId, tenantName: tenantsTable.name,
   passwordHash: usersTable.passwordHash, managerVoucherLimitRm: tenantsTable.managerVoucherLimitRm,
+  active: usersTable.active,
 };
 type ProfileRow = { [K in keyof typeof profileFields]: unknown };
 
@@ -94,6 +95,9 @@ export function createAuthRouter(store: Store = db): IRouter {
     // verifyPassword runs even for unknown emails so both failures take the same time.
     if (!verifyPassword(password, row?.passwordHash) || !row) {
       res.status(401).json({ error: "That email and password don't match an account." }); return;
+    }
+    if (!row.active) {
+      res.status(401).json({ error: "This account's access was removed. Ask the business owner if this is a mistake." }); return;
     }
     res.json({ token: signSession(row.id), user: toProfile(row) });
   });
@@ -154,11 +158,97 @@ export function createAuthRouter(store: Store = db): IRouter {
     }
   });
 
+  /** The logged-in, still-active account, or null. */
+  const currentUser = async (authorization: string | undefined) => {
+    const userId = verifySession(bearerToken(authorization));
+    const [row] = userId ? await select().where(and(eq(usersTable.id, userId), eq(usersTable.active, true))) : [];
+    return row ?? null;
+  };
+
   router.get("/auth/me", async (req, res): Promise<void> => {
-    const userId = verifySession(bearerToken(req.get("authorization")));
-    const [row] = userId ? await select().where(eq(usersTable.id, userId)) : [];
+    const row = await currentUser(req.get("authorization"));
     if (!row) { res.status(401).json({ error: "Please log in." }); return; }
     res.json({ user: toProfile(row) });
+  });
+
+  // Anyone can change their own password, after confirming the current one.
+  router.post("/auth/change-password", async (req, res): Promise<void> => {
+    const row = await currentUser(req.get("authorization"));
+    if (!row) { res.status(401).json({ error: "Please log in." }); return; }
+    const current = typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+    const next = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+    if (!verifyPassword(current, row.passwordHash)) { res.status(400).json({ error: "Your current password is not right." }); return; }
+    if (next.length < 8 || next.length > 200) { res.status(400).json({ error: "Choose a new password of at least 8 characters." }); return; }
+    if (next === current) { res.status(400).json({ error: "Choose a password different from the current one." }); return; }
+    await store.transaction(tx => tx.update(usersTable).set({ passwordHash: hashPassword(next) }).where(eq(usersTable.id, row.id)));
+    res.json({ ok: true });
+  });
+
+  // ---- Team management: Owner only, inside their own business ----
+  const owner = async (req: Parameters<Parameters<IRouter["get"]>[1]>[0], res: Parameters<Parameters<IRouter["get"]>[1]>[1]) => {
+    const row = await currentUser(req.get("authorization"));
+    if (!row) { res.status(401).json({ error: "Please log in." }); return null; }
+    if (row.role !== "Owner") { res.status(403).json({ error: "Only the Owner can manage the team." }); return null; }
+    return row;
+  };
+  const member = async (tenantId: string, id: string) => {
+    const [row] = await store.select({ id: usersTable.id, role: usersTable.role, name: usersTable.name, active: usersTable.active })
+      .from(usersTable).where(and(eq(usersTable.id, id), eq(usersTable.tenantId, tenantId)));
+    return row ?? null;
+  };
+
+  router.get("/team", async (req, res): Promise<void> => {
+    const me = await owner(req, res); if (!me) return;
+    const rows = await store.select({
+      id: usersTable.id, name: usersTable.name, email: usersTable.email, role: usersTable.role,
+      outletId: usersTable.outletId, active: usersTable.active,
+    }).from(usersTable).where(eq(usersTable.tenantId, String(me.tenantId))).orderBy(asc(usersTable.id));
+    res.json(rows.map(row => ({ ...row, name: row.name ?? row.id, isYou: row.id === me.id })));
+  });
+
+  router.post("/team", async (req, res): Promise<void> => {
+    const me = await owner(req, res); if (!me) return;
+    const name = text(req.body?.name, 80);
+    const email = text(req.body?.email, 200).toLowerCase();
+    const role = req.body?.role;
+    if (name.length < 2 || name.length > 80) { res.status(400).json({ error: "Enter the person's name." }); return; }
+    if (!EMAIL.test(email)) { res.status(400).json({ error: "Enter a valid email." }); return; }
+    if (role !== "Manager" && role !== "Staff") { res.status(400).json({ error: "Choose Manager or Staff." }); return; }
+    const [taken] = await store.select({ id: usersTable.id }).from(usersTable).where(eq(sql`lower(${usersTable.email})`, email));
+    if (taken) { res.status(409).json({ error: "That email already has an account." }); return; }
+    const password = temporaryPassword();
+    const id = `${String(me.tenantId)}-${randomBytes(3).toString("hex")}`;
+    try {
+      await store.transaction(tx => tx.insert(usersTable).values({
+        id, role, tenantId: String(me.tenantId), outletId: String(me.outletId), name, email, passwordHash: hashPassword(password),
+      }));
+    } catch (error) {
+      if ((error as { code?: string }).code === "23505") { res.status(409).json({ error: "That email already has an account." }); return; }
+      throw error;
+    }
+    res.status(201).json({ id, name, email, role, temporaryPassword: password });
+  });
+
+  router.post("/team/:id/reset-password", async (req, res): Promise<void> => {
+    const me = await owner(req, res); if (!me) return;
+    const target = await member(String(me.tenantId), String(req.params.id));
+    if (!target) { res.status(404).json({ error: "That person is not in your team." }); return; }
+    if (target.id === me.id) { res.status(400).json({ error: "Use Change password for your own account." }); return; }
+    const password = temporaryPassword();
+    await store.transaction(tx => tx.update(usersTable).set({ passwordHash: hashPassword(password) }).where(eq(usersTable.id, target.id)));
+    res.json({ id: target.id, name: target.name, temporaryPassword: password });
+  });
+
+  // Removing access keeps the person's name on past log entries but blocks every request at once.
+  router.post("/team/:id/access", async (req, res): Promise<void> => {
+    const me = await owner(req, res); if (!me) return;
+    const active = req.body?.active;
+    if (typeof active !== "boolean") { res.status(400).json({ error: "Say whether access is on or off." }); return; }
+    const target = await member(String(me.tenantId), String(req.params.id));
+    if (!target) { res.status(404).json({ error: "That person is not in your team." }); return; }
+    if (target.id === me.id) { res.status(400).json({ error: "You can't remove your own access." }); return; }
+    await store.transaction(tx => tx.update(usersTable).set({ active }).where(eq(usersTable.id, target.id)));
+    res.json({ id: target.id, active });
   });
 
   return router;

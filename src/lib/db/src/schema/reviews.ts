@@ -28,6 +28,8 @@ export const usersTable = pgTable("users", {
   name: text("name"),
   email: text("email"),
   passwordHash: text("password_hash"),
+  // Removed team members keep their history in the log but can no longer log in.
+  active: boolean("active").notNull().default(true),
 });
 
 export const reviewsTable = pgTable("resolve_reviews", {

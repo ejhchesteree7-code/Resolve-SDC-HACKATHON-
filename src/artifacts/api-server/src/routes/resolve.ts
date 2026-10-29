@@ -38,7 +38,7 @@ export function createResolveRouter(store: Store = db): IRouter {
       outletId: usersTable.outletId, managerVoucherLimitRm: tenantsTable.managerVoucherLimitRm,
       businessType: tenantsTable.businessType,
     }).from(usersTable).innerJoin(tenantsTable, eq(usersTable.tenantId, tenantsTable.id))
-      .where(eq(usersTable.id, id)) : [];
+      .where(and(eq(usersTable.id, id), eq(usersTable.active, true))) : [];
     authorize(user ?? null, "view", null);
     res.locals.user = user;
     next();
