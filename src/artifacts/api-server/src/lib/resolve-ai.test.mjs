@@ -179,7 +179,7 @@ test("impact: figures are derived from the activity log", async () => {
   assert.equal(result.handling.medianSeconds, 25);
   assert.equal(result.handling.reductionPct, 65.5);
   assert.deepEqual(result.approvals, { actionsTaken: 5, withLoggedHumanApproval: 4, pct: 80 });
-  assert.deepEqual(result.exceptions, { urgentToOwner: 1, needsMoreDetail: 1, rejectedByHuman: 1, possibleDuplicates: 0 });
+  assert.deepEqual(result.exceptions, { urgentToOwner: 1, needsMoreDetail: 1, rejectedByHuman: 1, possibleDuplicates: 0, overdueUrgent: 0, overdueOther: 0 });
 });
 
 test("duplicates: repeated text, the same reviewer soon after, or a burst are flagged with a reason", async () => {
@@ -199,4 +199,16 @@ test("duplicates: repeated text, the same reviewer soon after, or a burst are fl
   assert.equal(checkDuplicate({ reviewer: "Aina", text: "Came back, much better." }, [{ ...recent[0], createdAt: minutesAgo(45) }], now), null);
   const burst = checkDuplicate({ reviewer: "E", text: "five" }, ["A", "B", "C", "D"].map((reviewer, i) => ({ reviewer, text: `review ${i}`, createdAt: minutesAgo(i + 1) })), now);
   assert.equal(burst.kind, "burst");
+});
+
+test("overdue: urgent cases after 2 h, others after 24 h, closed cases never", async () => {
+  const { isOverdue } = await import("./resolve-overdue.ts");
+  const now = Date.parse("2026-10-31T12:00:00Z");
+  const hoursAgo = (h) => new Date(now - h * 3_600_000);
+  assert.equal(isOverdue({ status: "pending_owner", severity: "high", assignedRole: "Owner", createdAt: hoursAgo(3) }, now), true);
+  assert.equal(isOverdue({ status: "pending_owner", severity: "high", assignedRole: "Owner", createdAt: hoursAgo(1) }, now), false);
+  assert.equal(isOverdue({ status: "Needs approval", severity: "medium", assignedRole: "Manager", createdAt: hoursAgo(5) }, now), false);
+  assert.equal(isOverdue({ status: "Needs approval", severity: "medium", assignedRole: "Manager", createdAt: hoursAgo(30) }, now), true);
+  assert.equal(isOverdue({ status: "Resolved", severity: "high", assignedRole: "Owner", createdAt: hoursAgo(100) }, now), false);
+  assert.equal(isOverdue({ status: "Rejected", severity: "medium", assignedRole: "Manager", createdAt: hoursAgo(100) }, now), false);
 });

@@ -43,13 +43,14 @@ import PublicReviewsPage from '@/pages/public-reviews';
 import LoginPage from '@/pages/login';
 import RegisterPage from '@/pages/register';
 import ImpactPage from '@/pages/impact';
+import { overdueInfo, sortForAttention, TARGET_HOURS } from '@/lib/overdue';
 import { authHeader, checkSession, voucherLimit, loadSavedSession, logOut, type Role, type Session, type SessionUser } from '@/lib/session';
 import QRCode from 'qrcode';
 
 const queryClient = new QueryClient();
-type StatusFilter = 'All' | ReviewStatus;
+type StatusFilter = 'All' | 'Overdue' | ReviewStatus;
 
-const statuses: StatusFilter[] = ['All', 'New', 'Needs approval', 'pending_owner', 'Resolved', 'Rejected'];
+const statuses: StatusFilter[] = ['All', 'Overdue', 'New', 'Needs approval', 'pending_owner', 'Resolved', 'Rejected'];
 
 function labelStatus(status: ReviewStatus) {
   return status === 'pending_owner' ? 'Needs owner' : status;
@@ -174,7 +175,7 @@ function ReviewRow({ review, onOpen }: { review: Review; onOpen: () => void }) {
     <button className="review-row" onClick={onOpen} data-testid={`row-review-${review.id}`}>
       <span className={`rating-mark ${review.rating <= 2 ? 'low' : ''}`} data-testid={`text-rating-${review.id}`}>{review.rating}</span>
       <span className="review-info">
-        <span className="review-title"><strong>{review.reviewer}</strong><span className={`severity-badge ${review.severity}`}><CircleAlert size={11} />{review.severity} attention</span>{review.usedFallback && <span className="basic-mode-badge" data-testid={`basic-mode-${review.id}`}>Basic mode</span>}{review.ruleFired?.startsWith('R0') && <span className="duplicate-badge" data-testid={`duplicate-${review.id}`}>{review.ruleFired.includes('spam') ? 'Possible spam' : 'Possible duplicate'}</span>}</span>
+        <span className="review-title"><strong>{review.reviewer}</strong><span className={`severity-badge ${review.severity}`}><CircleAlert size={11} />{review.severity} attention</span>{review.usedFallback && <span className="basic-mode-badge" data-testid={`basic-mode-${review.id}`}>Basic mode</span>}{overdueInfo(review).overdue && <span className="overdue-badge" data-testid={`overdue-${review.id}`}>{overdueInfo(review).label}</span>}{review.ruleFired?.startsWith('R0') && <span className="duplicate-badge" data-testid={`duplicate-${review.id}`}>{review.ruleFired.includes('spam') ? 'Possible spam' : 'Possible duplicate'}</span>}</span>
         <span className="review-text">{review.text}</span>
         <span className="review-sub"><span>{review.outlet}</span><i className="dot" /><span>{review.category}</span><i className="dot" /><span>{review.language}</span></span>
       </span>
@@ -190,11 +191,13 @@ function Inbox({ role, setToast }: { role: Role; setToast: (message: string) => 
   const [outlet, setOutlet] = useState('All outlets');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const queryParams = useMemo(() => ({
-    ...(filter === 'All' ? {} : { status: filter }),
+    // "Overdue" is worked out from each case's age, so it loads all cases and filters here.
+    ...(filter === 'All' || filter === 'Overdue' ? {} : { status: filter }),
     ...(outlet === 'All outlets' ? {} : { outlet }),
   }), [filter, outlet]);
   const reviewsQuery = useListReviews(queryParams);
-  const reviews = reviewsQuery.data ?? [];
+  const loaded = reviewsQuery.data ?? [];
+  const reviews = sortForAttention(filter === 'Overdue' ? loaded.filter((review) => overdueInfo(review).overdue) : loaded);
   const simulate = useSimulateReview();
 
   const outlets = Array.from(new Set(reviews.map((review) => review.outlet))).sort();
@@ -229,7 +232,7 @@ function Inbox({ role, setToast }: { role: Role; setToast: (message: string) => 
           <div className="filter-bar" role="tablist" aria-label="Review status filters">
             {statuses.map((status) => (
               <button key={status} role="tab" aria-selected={filter === status} className={`filter-tab ${filter === status ? 'active' : ''}`} onClick={() => setFilter(status)} data-testid={`filter-status-${status.toLowerCase().replaceAll(' ', '-')}`}>
-                {status === 'All' ? status : labelStatus(status)}
+                {status === 'All' || status === 'Overdue' ? status : labelStatus(status)}
               </button>
             ))}
             <span className="filter-spacer" />
@@ -308,6 +311,7 @@ function GlanceStrip() {
   const items = [
     { label: 'Needs approval', value: count('Needs approval'), hint: 'Manager sign-off' },
     { label: 'Needs owner', value: count('pending_owner') + count('Needs owner'), hint: 'Safety, money or large vouchers' },
+    { label: 'Overdue', value: all.filter((review) => overdueInfo(review).overdue).length, hint: `Past target: ${TARGET_HOURS.urgent} h urgent, ${TARGET_HOURS.normal} h others` },
     { label: 'Resolved', value: count('Resolved'), hint: 'Reply approved and recorded' },
   ];
   return (
@@ -473,7 +477,7 @@ function ReviewDetail({ reviewId, role, onBack, setToast }: { reviewId: string; 
         <article className="detail-card" data-testid={`detail-review-${review.id}`}>
           <div className="detail-top">
             <div><div className="eyebrow">Review case</div><h2>{review.outlet}</h2><span className="case-id">CASE / {review.id}</span></div>
-            <div className="detail-badges"><span className={`status-badge ${statusClass(review.status)}`} data-testid={`detail-status-${review.id}`}>{review.status}</span><span className={`severity-badge ${review.severity}`}><CircleAlert size={12} />{review.severity}</span>{review.usedFallback && <span className="basic-mode-badge" data-testid={`basic-mode-detail-${review.id}`}>Basic mode</span>}</div>
+            <div className="detail-badges"><span className={`status-badge ${statusClass(review.status)}`} data-testid={`detail-status-${review.id}`}>{review.status}</span><span className={`severity-badge ${review.severity}`}><CircleAlert size={12} />{review.severity}</span>{review.usedFallback && <span className="basic-mode-badge" data-testid={`basic-mode-detail-${review.id}`}>Basic mode</span>}{overdueInfo(review).overdue && <span className="overdue-badge" data-testid={`overdue-detail-${review.id}`} title={`Response target: ${overdueInfo(review).targetHours} h`}>{overdueInfo(review).label} · target {overdueInfo(review).targetHours} h</span>}</div>
           </div>
           <section className="detail-body">
             <div className="section-kicker">Original review</div>

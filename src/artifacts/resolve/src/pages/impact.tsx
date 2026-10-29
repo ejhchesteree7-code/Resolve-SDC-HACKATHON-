@@ -5,12 +5,12 @@ import './impact.css';
 
 type Impact = {
   phase1: { baselineSeconds: number; targetReductionPct: number; targetRoutingPct: number; targetApprovalPct: number; targetFirstTimeUsersPct: number };
-  assumptions: { reviewsPerWeek: number };
+  assumptions: { reviewsPerWeek: number; responseTargetHours?: { urgent: number; normal: number } };
   steps: { manual: string[]; resolve: string[] };
   measured: {
     handling: { measuredApprovals: number; medianSeconds: number | null; reductionPct: number | null; weeklyMinutesSaved: number | null };
     approvals: { actionsTaken: number; withLoggedHumanApproval: number; pct: number | null };
-    exceptions: { urgentToOwner: number; needsMoreDetail: number; rejectedByHuman: number; possibleDuplicates: number };
+    exceptions: { urgentToOwner: number; needsMoreDetail: number; rejectedByHuman: number; possibleDuplicates: number; overdueUrgent: number; overdueOther: number };
     totalCases: number;
   };
   routing: { testCases: number; routingPct: number; categoryPct: number; urgentCaught: number; urgentTotal: number };
@@ -106,6 +106,8 @@ function ImpactBody({ data }: { data: Impact }) {
           <dl className="impact-list">
             <div><dt>Urgent cases sent straight to the Owner</dt><dd>{exceptions.urgentToOwner}</dd></div>
             <div><dt>Too vague, so a person asks for details</dt><dd>{exceptions.needsMoreDetail}</dd></div>
+            <div><dt>Open urgent cases past the {data.assumptions.responseTargetHours?.urgent ?? 2} h target</dt><dd>{exceptions.overdueUrgent}</dd></div>
+            <div><dt>Other open cases past the {data.assumptions.responseTargetHours?.normal ?? 24} h target</dt><dd>{exceptions.overdueOther}</dd></div>
             <div><dt>Possible duplicates or spam, checked by a person</dt><dd>{exceptions.possibleDuplicates}</dd></div>
             <div><dt>Drafts a person rejected (nothing posted)</dt><dd>{exceptions.rejectedByHuman}</dd></div>
             <div><dt>Cases in this view</dt><dd>{data.measured.totalCases}</dd></div>
