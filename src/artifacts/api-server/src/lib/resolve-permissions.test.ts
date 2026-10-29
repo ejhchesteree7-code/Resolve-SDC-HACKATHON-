@@ -7,8 +7,10 @@ import { asc, eq, sql } from "drizzle-orm";
 import { activityTable, db, pool, reviewsTable, tenantsTable, usersTable } from "@workspace/db";
 import { createResolveRouter } from "../routes/resolve";
 import { createPublicRouter } from "../routes/resolve-public";
+import { createAuthRouter } from "../routes/resolve-auth";
 import { ensureOutletDemoReviews } from "../routes/resolve-outlet-demo";
 import { routeNewReview, type ReviewClassification } from "./resolve-ai";
+import { hashPassword, signSession } from "./resolve-auth";
 
 test("T2: all 18 routing combinations have an assigned role", () => {
   let combinations = 0;
@@ -61,6 +63,7 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
       const app = express();
       app.use(express.json());
       app.use("/api", createPublicRouter(tx, { aiDisabled: true }));
+      app.use("/api", createAuthRouter(tx));
       app.use("/api", createResolveRouter(tx));
       // Keep expected database-failure tests quiet; never log request credentials.
       app.use((_error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -72,7 +75,7 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
       assert.ok(address && typeof address !== "string");
       const base = `http://127.0.0.1:${address.port}/api`;
       const request = (path: string, user: string | null, method = "GET", body?: unknown) => fetch(base + path, {
-        method, headers: { ...(user ? { "x-demo-user-id": user } : {}), "content-type": "application/json" },
+        method, headers: { ...(user ? { authorization: `Bearer ${signSession(user)}` } : {}), "content-type": "application/json" },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       try {
@@ -326,6 +329,39 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
           assert.equal((await request(`/cases/${row.id}`, manager, "PATCH", { voucherAmount: 25 })).status, 500);
           assert.deepEqual(await getCase(row.id), row);
           assert.deepEqual(await logs(row.id), []);
+        });
+        await t.test("login: only a server-signed session identifies the user", async () => {
+          // The old demo header and forged or expired tokens are all refused.
+          const bare = await fetch(base + "/reviews", { headers: { "x-demo-user-id": owner } });
+          assert.equal(bare.status, 403);
+          const [payload, signature] = signSession(staff).split(".");
+          const forgedPayload = Buffer.from(JSON.stringify({ uid: owner, exp: Date.now() + 60_000 })).toString("base64url");
+          for (const token of [`${forgedPayload}.${signature}`, `${payload}.AAAA`, signSession(owner, Date.now() - 13 * 3600_000), "nonsense"]) {
+            const response = await fetch(base + "/reviews", { headers: { authorization: `Bearer ${token}` } });
+            assert.equal(response.status, 403);
+          }
+          await tx.update(usersTable).set({
+            name: "Test Owner", email: `${owner}@test.demo`, passwordHash: hashPassword("correct-horse"),
+          }).where(eq(usersTable.id, owner));
+          const login = (email: string, password: string) => fetch(base + "/auth/login", {
+            method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }),
+          });
+          assert.equal((await login(`${owner}@test.demo`, "wrong-password")).status, 401);
+          assert.equal((await login("nobody@test.demo", "correct-horse")).status, 401);
+          assert.equal((await login("", "")).status, 400);
+          const ok = await login(`  ${owner.toUpperCase()}@TEST.DEMO `, "correct-horse");
+          assert.equal(ok.status, 200);
+          const body = await ok.json() as { token: string; user: { id: string; role: string; name: string } };
+          assert.equal(body.user.id, owner);
+          assert.equal(body.user.role, "Owner");
+          assert.equal(body.user.name, "Test Owner");
+          assert.ok(!("passwordHash" in body.user));
+          const me = await fetch(base + "/auth/me", { headers: { authorization: `Bearer ${body.token}` } });
+          assert.equal(me.status, 200);
+          assert.equal(((await me.json()) as { user: { role: string } }).user.role, "Owner");
+          assert.equal((await fetch(base + "/auth/me")).status, 401);
+          const reviews = await fetch(base + "/reviews", { headers: { authorization: `Bearer ${body.token}` } });
+          assert.equal(reviews.status, 200);
         });
       } finally {
         await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

@@ -7,6 +7,7 @@ import {
 } from "@workspace/api-zod";
 import { activityTable, db, reviewsTable, tenantsTable, usersTable } from "@workspace/db";
 import { authorize, PermissionDenied, type User } from "../lib/resolve-permissions";
+import { bearerToken, verifySession } from "../lib/resolve-auth";
 import { auditWriter, CaseError, changeCase, type Store } from "../lib/resolve-cases";
 import { receiveReview } from "../lib/resolve-received";
 import { computeInsight } from "../lib/resolve-insights";
@@ -26,9 +27,10 @@ const samples = [
 
 export function createResolveRouter(store: Store = db): IRouter {
   const router: IRouter = Router();
-  // No role, tenant or outlet from the request body participates in authorization.
+  // Identity comes only from a server-signed login session; no role, tenant or
+  // outlet from the request participates in authorization.
   router.use(async (req, res, next): Promise<void> => {
-    const id = req.get("x-demo-user-id");
+    const id = verifySession(bearerToken(req.get("authorization")));
     const [user] = id ? await store.select({
       id: usersTable.id, role: usersTable.role, tenantId: usersTable.tenantId,
       outletId: usersTable.outletId, managerVoucherLimitRm: tenantsTable.managerVoucherLimitRm,

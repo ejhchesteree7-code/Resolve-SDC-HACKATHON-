@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   Coffee,
   FileClock,
+  LogOut,
   Lightbulb,
   LoaderCircle,
   MessageSquareText,
@@ -30,7 +31,6 @@ import {
   useRejectReview,
   useSimulateReview,
   useUpdateReview,
-  setDemoUserId,
   type Activity as ActivityRecord,
   type Review,
   type ReviewAssignedRole,
@@ -39,12 +39,11 @@ import {
 import { ErrorBoundary } from '@/components/error-boundary';
 import NotFound from '@/pages/not-found';
 import PublicReviewsPage from '@/pages/public-reviews';
+import LoginPage from '@/pages/login';
+import { authHeader, checkSession, loadSavedSession, logOut, type Role, type Session, type SessionUser } from '@/lib/session';
 import QRCode from 'qrcode';
 
 const queryClient = new QueryClient();
-let currentDemoUser = 'demo-manager';
-setDemoUserId(currentDemoUser);
-type Role = 'Staff' | 'Manager' | 'Owner';
 type StatusFilter = 'All' | ReviewStatus;
 
 const statuses: StatusFilter[] = ['All', 'New', 'Needs approval', 'pending_owner', 'Resolved', 'Rejected'];
@@ -78,7 +77,8 @@ function initials(value: string) {
   return value.split(/\s+/).slice(0, 2).map((piece) => piece[0] ?? '').join('').toUpperCase();
 }
 
-function Shell({ children, role, setRole }: { children: ReactNode; role: Role; setRole: (role: Role) => void }) {
+function Shell({ children, user, onLogOut }: { children: ReactNode; user: SessionUser; onLogOut: () => void }) {
+  const role = user.role;
   const [location] = useLocation();
   const activeActivity = location === '/activity';
   return (
@@ -106,8 +106,8 @@ function Shell({ children, role, setRole }: { children: ReactNode; role: Role; s
             <p>Every review becomes a case with an owner, a reason and a record.</p>
           </div>
           <div className="profile-chip">
-            <span className="profile-avatar">{initials(role)}</span>
-            <div className="profile-copy"><strong>Workspace role</strong><span>{role} view</span></div>
+            <span className="profile-avatar">{initials(user.name)}</span>
+            <div className="profile-copy"><strong>{user.name}</strong><span>{role} · {user.tenantName}</span></div>
           </div>
         </div>
       </aside>
@@ -115,12 +115,10 @@ function Shell({ children, role, setRole }: { children: ReactNode; role: Role; s
         <header className="topbar">
           <div className="breadcrumbs"><span>Resolve</span><ChevronRight size={13} /><b>{activeActivity ? 'Activity log' : 'Review inbox'}</b></div>
           <div className="top-actions">
-            <span className="role-label">Viewing as</span>
-            <select className="role-select" value={role} onChange={(event) => setRole(event.target.value as Role)} aria-label="Simulated role" data-testid="select-role">
-              <option value="Staff">Staff</option>
-              <option value="Manager">Manager</option>
-              <option value="Owner">Owner</option>
-            </select>
+            <div className="topbar-user">
+              <span className="topbar-user-role" data-testid="text-logged-in-role">Logged in as <b>{role}</b></span>
+              <button type="button" className="button" onClick={onLogOut} data-testid="button-logout"><LogOut />Log out</button>
+            </div>
           </div>
         </header>
         {children}
@@ -562,7 +560,7 @@ function GuestFollowUp({ review, voucherAmount, role, alreadySent, onSent, vouch
     setBusy(true); setError('');
     try {
       const response = await fetch('/api/cases/' + review.id + '/followup', {
-        method: 'POST', headers: { 'content-type': 'application/json', 'x-demo-user-id': currentDemoUser },
+        method: 'POST', headers: { 'content-type': 'application/json', ...authHeader() },
         body: JSON.stringify({ message: draft }),
       });
       if (!response.ok) throw new Error(((await response.json().catch(() => ({}))) as { error?: string }).error ?? 'Could not send.');
@@ -660,37 +658,63 @@ function ActivityPage({ setToast }: { setToast: (message: string) => void }) {
   );
 }
 
-function AppRoutes({ role, setRole, setToast }: { role: Role; setRole: (role: Role) => void; setToast: (message: string) => void }) {
+function AppRoutes({ user, onLogOut, onLoggedIn, setToast }: { user: SessionUser | null; onLogOut: () => void; onLoggedIn: (session: Session) => void; setToast: (message: string) => void }) {
   const [location] = useLocation();
   const [isPublic, publicParams] = useRoute('/p/:outletId');
+  if (isPublic) return <ErrorBoundary resetKey={location}><PublicReviewsPage outletId={publicParams.outletId} /></ErrorBoundary>;
+  // Everything except the public guest page needs a login.
+  if (!user) return <ErrorBoundary resetKey={location}><LoginPage onLoggedIn={onLoggedIn} /></ErrorBoundary>;
+  const role = user.role;
   return (
     <ErrorBoundary resetKey={location}>
-      {isPublic ? <PublicReviewsPage outletId={publicParams.outletId} /> : <Shell role={role} setRole={setRole}>
+      <Shell user={user} onLogOut={onLogOut}>
         <Switch>
           <Route path="/"><Inbox role={role} setToast={setToast} /></Route>
           <Route path="/activity">{role === 'Staff' ? <p className="inline-alert">Staff cannot view the activity log.</p> : <ActivityPage setToast={setToast} />}</Route>
           <Route component={NotFound} />
         </Switch>
-      </Shell>}
+      </Shell>
     </ErrorBoundary>
   );
 }
 
 function AppContent() {
-  const [role, setRole] = useState<Role>('Manager');
+  const [user, setUser] = useState<SessionUser | null>(() => loadSavedSession()?.user ?? null);
   const [toastMessage, setToastMessage] = useState('');
+  const [, navigate] = useLocation();
   const dismissToast = () => setToastMessage('');
-  const switchUser = (next: Role) => {
-    currentDemoUser = `demo-${next.toLowerCase()}`;
-    setDemoUserId(currentDemoUser);
+  const resetData = () => {
     void queryClient.cancelQueries();
     queryClient.clear();
     setToastMessage('');
-    setRole(next);
+  };
+  // A saved session is re-checked with the server; an expired one returns to login.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    void checkSession().then((fresh) => {
+      if (!active) return;
+      if (fresh) setUser(fresh);
+      else if (!loadSavedSession()) setUser(null);
+    });
+    return () => { active = false; };
+    // Only on first load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const onLoggedIn = (session: Session) => {
+    resetData();
+    setUser(session.user);
+    navigate('/');
+  };
+  const onLogOut = () => {
+    logOut();
+    resetData();
+    setUser(null);
+    navigate('/');
   };
   return (
     <>
-      <AppRoutes key={role} role={role} setRole={switchUser} setToast={setToastMessage} />
+      <AppRoutes key={user?.id ?? 'signed-out'} user={user} onLogOut={onLogOut} onLoggedIn={onLoggedIn} setToast={setToastMessage} />
       {toastMessage && <Toast message={toastMessage} onClose={dismissToast} />}
     </>
   );

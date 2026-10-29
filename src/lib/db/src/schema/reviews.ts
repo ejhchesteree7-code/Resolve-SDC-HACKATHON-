@@ -4,6 +4,7 @@ import { pgTable, pgSequence, text, integer, real, boolean, timestamp, bigint } 
 export const tenantsTable = pgTable("tenants", {
   id: text("id").primaryKey(),
   managerVoucherLimitRm: real("manager_voucher_limit_rm").notNull().default(20),
+  name: text("name"),
 });
 
 export const usersTable = pgTable("users", {
@@ -11,6 +12,10 @@ export const usersTable = pgTable("users", {
   role: text("role").notNull(),
   tenantId: text("tenant_id").notNull().references(() => tenantsTable.id),
   outletId: text("outlet_id").notNull(),
+  // Login fields. Accounts without an email or password hash cannot log in.
+  name: text("name"),
+  email: text("email"),
+  passwordHash: text("password_hash"),
 });
 
 export const reviewsTable = pgTable("resolve_reviews", {

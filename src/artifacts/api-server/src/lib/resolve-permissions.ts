@@ -30,7 +30,7 @@ export function authorize(user: User | null, action: Action, review: PermissionC
     throw new PermissionDenied(message);
   };
   if (action === "health") return;
-  if (!user || !["Staff", "Manager", "Owner"].includes(user.role)) deny("A valid x-demo-user-id is required.");
+  if (!user || !["Staff", "Manager", "Owner"].includes(user.role)) deny("Please log in.");
   const actor = user!;
   if (review && (review.tenantId !== actor.tenantId || (actor.role !== "Owner" && review.outletId !== actor.outletId))) {
     deny("This case is outside your tenant or outlet.");
