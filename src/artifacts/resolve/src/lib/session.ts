@@ -9,11 +9,14 @@ export type SessionUser = {
   outletId: string;
   tenantId: string;
   tenantName: string;
+  /** The business's manager voucher limit; older saved sessions may not have it. */
+  managerVoucherLimitRm?: number;
 };
 export type Session = { token: string; user: SessionUser };
 
 const STORAGE_KEY = 'resolve.session';
 let token: string | null = null;
+let currentUser: SessionUser | null = null;
 setAuthTokenGetter(() => token);
 
 // Browser storage is a convenience only: it can be missing or throw (private mode).
@@ -24,6 +27,7 @@ export function loadSavedSession(): Session | null {
     const saved = JSON.parse(raw) as Session;
     if (!saved?.token || !saved.user) return null;
     token = saved.token;
+    currentUser = saved.user;
     return saved;
   } catch {
     return null;
@@ -32,6 +36,7 @@ export function loadSavedSession(): Session | null {
 
 function save(session: Session | null) {
   token = session?.token ?? null;
+  currentUser = session?.user ?? null;
   try {
     if (session) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
     else window.localStorage.removeItem(STORAGE_KEY);
@@ -67,6 +72,11 @@ export async function checkSession(): Promise<SessionUser | null> {
   } catch {
     return null;
   }
+}
+
+/** Manager voucher limit for the logged-in business (RM 20 for older sessions). */
+export function voucherLimit(): number {
+  return currentUser?.managerVoucherLimitRm ?? 20;
 }
 
 export function logOut() {

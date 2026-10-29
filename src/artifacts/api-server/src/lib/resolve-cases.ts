@@ -9,6 +9,8 @@ export class CaseError extends Error {
   constructor(message: string, public status: number) { super(message); }
 }
 type Changes = { draftReply?: string; voucherAmount?: number | null; reason?: string };
+/** Measured by the browser: time from opening the case to clicking Approve. */
+type Measurement = { handlingMs?: number | null };
 
 export function auditWriter(tx: Transaction, reviewId: string, actor: string, role: string) {
   return async (action: string, details: string) => {
@@ -20,6 +22,7 @@ export function auditWriter(tx: Transaction, reviewId: string, actor: string, ro
 
 export async function changeCase(
   store: Store, user: User, id: string, action: "edit" | "approve" | "reject", changes: Changes,
+  measurement: Measurement = {},
 ) {
   return store.transaction(async (tx) => {
     const [existing] = await tx.select().from(reviewsTable).where(eq(reviewsTable.id, id)).for("update");
@@ -54,7 +57,11 @@ export async function changeCase(
     const [row] = await tx.update(reviewsTable).set({
       draftReply: reply, finalReply: reply, voucherAmount: voucher, status: "Resolved",
     }).where(eq(reviewsTable.id, id)).returning();
-    await log("approved", "Reply approved by human reviewer");
+    const handled = measurement.handlingMs;
+    // The handling time is part of the audit record, so the Impact page can be checked against the log.
+    await log("approved", handled != null
+      ? `Reply approved by human reviewer · handled in ${(handled / 1000).toFixed(1)} s`
+      : "Reply approved by human reviewer");
     await log("reply_posted", "Reply posted (simulated)");
     if (voucher !== null && voucher > 0) await log("voucher_issued", `Synthetic RM ${voucher.toFixed(2)} voucher issued`);
     await log("resolved", "Case resolved");

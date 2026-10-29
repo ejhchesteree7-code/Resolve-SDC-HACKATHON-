@@ -431,6 +431,24 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
           const cafeRows = await (await request("/reviews", owner)).json() as { tenantId: string }[];
           assert.ok(cafeRows.every(row => row.tenantId !== body.user.tenantId));
         });
+        await t.test("impact: approval timing is written into the log and reported", async () => {
+          const row = await fixture({ status: "Needs approval", assignedRole: "Manager", severity: "medium" });
+          const approved = await fetch(`${base}/cases/${row.id}/approve`, {
+            method: "POST",
+            headers: { authorization: `Bearer ${signSession(manager)}`, "content-type": "application/json", "x-handling-ms": "21400" },
+            body: JSON.stringify({ draftReply: "Sorry for the wait." }),
+          });
+          assert.equal(approved.status, 200);
+          const approvedLog = (await logs(row.id)).find(log => log.action === "approved")!;
+          assert.equal(approvedLog.details, "Reply approved by human reviewer · handled in 21.4 s");
+          const impact = await (await request("/impact", manager)).json() as {
+            measured: { handling: { measuredApprovals: number }; approvals: { pct: number } };
+            routing: { routingPct: number };
+          };
+          assert.ok(impact.measured.handling.measuredApprovals >= 1);
+          assert.ok(impact.routing.routingPct >= 90);
+          assert.equal((await request("/impact", staff)).status, 403);
+        });
       } finally {
         await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
       }

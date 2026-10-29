@@ -7,6 +7,7 @@ import {
 } from "@workspace/api-zod";
 import { activityTable, db, outletsTable, reviewsTable, tenantsTable, usersTable } from "@workspace/db";
 import { profileFor } from "../lib/resolve-business-types";
+import { MANUAL_STEPS, measureFromLog, measureRouting, PHASE1, RESOLVE_STEPS, REVIEWS_PER_WEEK } from "../lib/resolve-impact";
 import { authorize, PermissionDenied, type User } from "../lib/resolve-permissions";
 import { bearerToken, verifySession } from "../lib/resolve-auth";
 import { auditWriter, CaseError, changeCase, type Store } from "../lib/resolve-cases";
@@ -108,7 +109,10 @@ export function createResolveRouter(store: Store = db): IRouter {
   router.post(["/reviews/:reviewId/approve", "/cases/:reviewId/approve"], async (req, res): Promise<void> => {
     const body = ApproveReviewBody.safeParse(req.body ?? {});
     if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
-    const row = await changeCase(store, res.locals.user, String(req.params.reviewId), "approve", body.data);
+    // Optional browser measurement (ms from opening the case to Approve), capped at one hour.
+    const measured = Number(req.get("x-handling-ms"));
+    const handlingMs = Number.isFinite(measured) && measured > 0 && measured <= 3_600_000 ? Math.round(measured) : null;
+    const row = await changeCase(store, res.locals.user, String(req.params.reviewId), "approve", body.data, { handlingMs });
     res.json(ApproveReviewResponse.parse(toApiReview(row)));
   });
 
@@ -144,6 +148,25 @@ export function createResolveRouter(store: Store = db): IRouter {
     res.json(ListActivityResponse.parse(rows.map(({ activity }) => ({
       ...activity, createdAt: activity.createdAt.toISOString(),
     }))));
+  });
+
+  // Impact measured from this business's own activity log, against the Phase 1 baseline.
+  router.get("/impact", async (_req, res): Promise<void> => {
+    const user: User = res.locals.user;
+    authorize(user, "activity", null);
+    const cases = await store.select({
+      id: reviewsTable.id, missingInfo: reviewsTable.missingInfo, ruleFired: reviewsTable.ruleFired, status: reviewsTable.status,
+    }).from(reviewsTable).where(scope(user));
+    const activity = await store.select({
+      reviewId: activityTable.reviewId, action: activityTable.action, role: activityTable.role, details: activityTable.details,
+    }).from(activityTable).innerJoin(reviewsTable, eq(activityTable.reviewId, reviewsTable.id)).where(scope(user));
+    res.json({
+      phase1: PHASE1,
+      assumptions: { reviewsPerWeek: REVIEWS_PER_WEEK },
+      steps: { manual: MANUAL_STEPS, resolve: RESOLVE_STEPS },
+      measured: measureFromLog(activity, cases),
+      routing: await measureRouting(),
+    });
   });
 
   router.get("/insights", async (_req, res): Promise<void> => {

@@ -69,13 +69,14 @@ function parseRegister(body: unknown): RegisterInput {
 const profileFields = {
   id: usersTable.id, name: usersTable.name, email: usersTable.email, role: usersTable.role,
   outletId: usersTable.outletId, tenantId: usersTable.tenantId, tenantName: tenantsTable.name,
-  passwordHash: usersTable.passwordHash,
+  passwordHash: usersTable.passwordHash, managerVoucherLimitRm: tenantsTable.managerVoucherLimitRm,
 };
 type ProfileRow = { [K in keyof typeof profileFields]: unknown };
 
 const toProfile = (row: ProfileRow) => ({
   id: row.id, name: row.name ?? row.id, email: row.email, role: row.role,
   outletId: row.outletId, tenantId: row.tenantId, tenantName: row.tenantName ?? row.tenantId,
+  managerVoucherLimitRm: row.managerVoucherLimitRm,
 });
 
 export function createAuthRouter(store: Store = db): IRouter {
@@ -139,6 +140,7 @@ export function createAuthRouter(store: Store = db): IRouter {
         user: {
           id: result.ownerId, name: input.owner.name, email: input.owner.email, role: "Owner",
           outletId: input.outletName, tenantId: result.tenantId, tenantName: input.businessName,
+          managerVoucherLimitRm: input.voucherLimitRm,
         },
         business: { name: input.businessName, type: input.businessType, typeLabel: businessProfiles[input.businessType].label },
         outlet: { slug: result.slug, name: input.outletName },
