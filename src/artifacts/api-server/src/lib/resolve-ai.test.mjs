@@ -179,5 +179,24 @@ test("impact: figures are derived from the activity log", async () => {
   assert.equal(result.handling.medianSeconds, 25);
   assert.equal(result.handling.reductionPct, 65.5);
   assert.deepEqual(result.approvals, { actionsTaken: 5, withLoggedHumanApproval: 4, pct: 80 });
-  assert.deepEqual(result.exceptions, { urgentToOwner: 1, needsMoreDetail: 1, rejectedByHuman: 1 });
+  assert.deepEqual(result.exceptions, { urgentToOwner: 1, needsMoreDetail: 1, rejectedByHuman: 1, possibleDuplicates: 0 });
+});
+
+test("duplicates: repeated text, the same reviewer soon after, or a burst are flagged with a reason", async () => {
+  const { checkDuplicate } = await import("./resolve-duplicates.ts");
+  const now = new Date("2026-10-31T10:00:00Z");
+  const minutesAgo = (m) => new Date(now.getTime() - m * 60_000);
+  const recent = [{ reviewer: "Aina", text: "Tunggu 40 minit, staff rude gila.", createdAt: minutesAgo(3) }];
+  // Same words with different case and punctuation still match.
+  const same = checkDuplicate({ reviewer: "Someone Else", text: "tunggu 40 minit... STAFF rude gila!!" }, recent, now);
+  assert.equal(same.kind, "same_text");
+  assert.match(same.reason, /same wording as a review posted 3 min ago/);
+  const again = checkDuplicate({ reviewer: " aina ", text: "Also the coffee was cold." }, recent, now);
+  assert.equal(again.kind, "same_reviewer");
+  // Different person, different words: not a duplicate.
+  assert.equal(checkDuplicate({ reviewer: "Ben", text: "Lovely cake." }, recent, now), null);
+  // The same reviewer more than 30 minutes later is a fresh visit.
+  assert.equal(checkDuplicate({ reviewer: "Aina", text: "Came back, much better." }, [{ ...recent[0], createdAt: minutesAgo(45) }], now), null);
+  const burst = checkDuplicate({ reviewer: "E", text: "five" }, ["A", "B", "C", "D"].map((reviewer, i) => ({ reviewer, text: `review ${i}`, createdAt: minutesAgo(i + 1) })), now);
+  assert.equal(burst.kind, "burst");
 });

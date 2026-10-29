@@ -66,6 +66,7 @@ export function measureFromLog(activity: ActivityRow[], cases: CaseRow[]) {
       urgentToOwner: cases.filter(row => row.ruleFired?.startsWith("R2")).length,
       needsMoreDetail: cases.filter(row => row.missingInfo).length,
       rejectedByHuman: cases.filter(row => row.status === "Rejected").length,
+      possibleDuplicates: cases.filter(row => row.ruleFired?.startsWith("R0")).length,
     },
     totalCases: cases.length,
   };
