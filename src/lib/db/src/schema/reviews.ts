@@ -4,6 +4,19 @@ import { pgTable, pgSequence, text, integer, real, boolean, timestamp, bigint } 
 export const tenantsTable = pgTable("tenants", {
   id: text("id").primaryKey(),
   managerVoucherLimitRm: real("manager_voucher_limit_rm").notNull().default(20),
+  name: text("name"),
+  businessType: text("business_type").notNull().default("cafe"),
+  // Simulated: the Google listing a live deployment would connect to.
+  googlePlaceId: text("google_place_id"),
+});
+
+// Each outlet has a public slug used in its review link (/p/<slug>) and QR code.
+// outlet_name matches users.outlet_id and resolve_reviews.outlet_id.
+export const outletsTable = pgTable("outlets", {
+  slug: text("slug").primaryKey(),
+  tenantId: text("tenant_id").notNull().references(() => tenantsTable.id),
+  name: text("outlet_name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const usersTable = pgTable("users", {
@@ -11,6 +24,10 @@ export const usersTable = pgTable("users", {
   role: text("role").notNull(),
   tenantId: text("tenant_id").notNull().references(() => tenantsTable.id),
   outletId: text("outlet_id").notNull(),
+  // Login fields. Accounts without an email or password hash cannot log in.
+  name: text("name"),
+  email: text("email"),
+  passwordHash: text("password_hash"),
 });
 
 export const reviewsTable = pgTable("resolve_reviews", {

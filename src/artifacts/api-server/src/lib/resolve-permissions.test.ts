@@ -7,8 +7,10 @@ import { asc, eq, sql } from "drizzle-orm";
 import { activityTable, db, pool, reviewsTable, tenantsTable, usersTable } from "@workspace/db";
 import { createResolveRouter } from "../routes/resolve";
 import { createPublicRouter } from "../routes/resolve-public";
+import { createAuthRouter } from "../routes/resolve-auth";
 import { ensureOutletDemoReviews } from "../routes/resolve-outlet-demo";
 import { routeNewReview, type ReviewClassification } from "./resolve-ai";
+import { hashPassword, signSession } from "./resolve-auth";
 
 test("T2: all 18 routing combinations have an assigned role", () => {
   let combinations = 0;
@@ -61,6 +63,7 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
       const app = express();
       app.use(express.json());
       app.use("/api", createPublicRouter(tx, { aiDisabled: true }));
+      app.use("/api", createAuthRouter(tx));
       app.use("/api", createResolveRouter(tx));
       // Keep expected database-failure tests quiet; never log request credentials.
       app.use((_error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -72,7 +75,7 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
       assert.ok(address && typeof address !== "string");
       const base = `http://127.0.0.1:${address.port}/api`;
       const request = (path: string, user: string | null, method = "GET", body?: unknown) => fetch(base + path, {
-        method, headers: { ...(user ? { "x-demo-user-id": user } : {}), "content-type": "application/json" },
+        method, headers: { ...(user ? { authorization: `Bearer ${signSession(user)}` } : {}), "content-type": "application/json" },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       try {
@@ -326,6 +329,107 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
           assert.equal((await request(`/cases/${row.id}`, manager, "PATCH", { voucherAmount: 25 })).status, 500);
           assert.deepEqual(await getCase(row.id), row);
           assert.deepEqual(await logs(row.id), []);
+        });
+        await t.test("login: only a server-signed session identifies the user", async () => {
+          // The old demo header and forged or expired tokens are all refused.
+          const bare = await fetch(base + "/reviews", { headers: { "x-demo-user-id": owner } });
+          assert.equal(bare.status, 403);
+          const [payload, signature] = signSession(staff).split(".");
+          const forgedPayload = Buffer.from(JSON.stringify({ uid: owner, exp: Date.now() + 60_000 })).toString("base64url");
+          for (const token of [`${forgedPayload}.${signature}`, `${payload}.AAAA`, signSession(owner, Date.now() - 13 * 3600_000), "nonsense"]) {
+            const response = await fetch(base + "/reviews", { headers: { authorization: `Bearer ${token}` } });
+            assert.equal(response.status, 403);
+          }
+          await tx.update(usersTable).set({
+            name: "Test Owner", email: `${owner}@test.demo`, passwordHash: hashPassword("correct-horse"),
+          }).where(eq(usersTable.id, owner));
+          const login = (email: string, password: string) => fetch(base + "/auth/login", {
+            method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password }),
+          });
+          assert.equal((await login(`${owner}@test.demo`, "wrong-password")).status, 401);
+          assert.equal((await login("nobody@test.demo", "correct-horse")).status, 401);
+          assert.equal((await login("", "")).status, 400);
+          const ok = await login(`  ${owner.toUpperCase()}@TEST.DEMO `, "correct-horse");
+          assert.equal(ok.status, 200);
+          const body = await ok.json() as { token: string; user: { id: string; role: string; name: string } };
+          assert.equal(body.user.id, owner);
+          assert.equal(body.user.role, "Owner");
+          assert.equal(body.user.name, "Test Owner");
+          assert.ok(!("passwordHash" in body.user));
+          const me = await fetch(base + "/auth/me", { headers: { authorization: `Bearer ${body.token}` } });
+          assert.equal(me.status, 200);
+          assert.equal(((await me.json()) as { user: { role: string } }).user.role, "Owner");
+          assert.equal((await fetch(base + "/auth/me")).status, 401);
+          const reviews = await fetch(base + "/reviews", { headers: { authorization: `Bearer ${body.token}` } });
+          assert.equal(reviews.status, 200);
+        });
+        await t.test("register: a salon signs up and works with no code change", async () => {
+          const post = (path: string, body: unknown, token?: string) => fetch(base + path, {
+            method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+            body: JSON.stringify(body),
+          });
+          const unique = randomUUID().slice(0, 8);
+          const signup = {
+            businessName: "Glow & Co Salon", businessType: "salon", outletName: "Glow & Co — SS15",
+            voucherLimitRm: 30, googlePlaceId: "ChIJ_simulated_123",
+            owner: { name: "Aisha Rahman", email: `aisha-${unique}@glowco.demo`, password: "salon-pass-1" },
+            team: [
+              { name: "Farah Lim", email: `farah-${unique}@glowco.demo`, role: "Manager" },
+              { name: "Danial Hakim", email: `danial-${unique}@glowco.demo`, role: "Staff" },
+            ],
+          };
+          for (const bad of [
+            { ...signup, businessType: "spaceship" }, { ...signup, owner: { ...signup.owner, password: "short" } },
+            { ...signup, team: [{ ...signup.team[0], email: signup.owner.email }] }, { ...signup, voucherLimitRm: -1 },
+          ]) assert.equal((await post("/auth/register", bad)).status, 400);
+          const created = await post("/auth/register", signup);
+          assert.equal(created.status, 201);
+          const body = await created.json() as {
+            token: string; user: { role: string; tenantId: string };
+            outlet: { slug: string; name: string };
+            accounts: { email: string; role: string; temporaryPassword: string | null }[];
+          };
+          assert.equal(body.user.role, "Owner");
+          assert.equal(body.outlet.name, "Glow & Co — SS15");
+          assert.match(body.outlet.slug, /^glow-co-ss15/);
+          assert.deepEqual(body.accounts.map(account => account.role), ["Owner", "Manager", "Staff"]);
+          assert.equal(body.accounts[0]!.temporaryPassword, null);
+          assert.ok(body.accounts.slice(1).every(account => /^[a-z]+-\d{4}$/.test(account.temporaryPassword ?? "")));
+          const [tenant] = await tx.select().from(tenantsTable).where(eq(tenantsTable.id, body.user.tenantId));
+          assert.equal(tenant!.businessType, "salon");
+          assert.equal(tenant!.managerVoucherLimitRm, 30);
+          assert.equal(tenant!.googlePlaceId, "ChIJ_simulated_123");
+          // Same email again is refused.
+          assert.equal((await post("/auth/register", signup)).status, 409);
+          // The new owner sees only their own outlet link, and none of the café's reviews.
+          const outlets = await (await fetch(base + "/outlets", { headers: { authorization: `Bearer ${body.token}` } })).json() as { slug: string }[];
+          assert.deepEqual(outlets.map(outlet => outlet.slug), [body.outlet.slug]);
+          const before = await (await fetch(base + "/reviews", { headers: { authorization: `Bearer ${body.token}` } })).json() as unknown[];
+          assert.equal(before.length, 0);
+          // A guest scans the salon's QR and leaves a hygiene complaint.
+          const info = await (await fetch(`${base}/public/outlets/${body.outlet.slug}`)).json() as { business: string; businessType: string };
+          assert.deepEqual(info, { outlet: "Glow & Co — SS15", business: "Glow & Co Salon", businessType: "salon" });
+          const guest = await post("/events/review-received", {
+            outletId: body.outlet.slug, source: "public_page", alias: "Kavitha", rating: 1,
+            text: "Scissors were not cleaned between customers.",
+          });
+          assert.equal(guest.status, 201);
+          const inbox = await (await fetch(base + "/reviews", { headers: { authorization: `Bearer ${body.token}` } })).json() as {
+            category: string; assignedRole: string; tenantId: string; outlet: string;
+          }[];
+          assert.equal(inbox.length, 1);
+          assert.equal(inbox[0]!.category, "Hygiene & safety");
+          assert.equal(inbox[0]!.assignedRole, "Owner");
+          assert.equal(inbox[0]!.outlet, "Glow & Co — SS15");
+          // Team members log in with their one-time passwords; the staff member cannot see the log.
+          const staffAccount = body.accounts[2]!;
+          const staffLogin = await post("/auth/login", { email: staffAccount.email, password: staffAccount.temporaryPassword });
+          assert.equal(staffLogin.status, 200);
+          const staffToken = (await staffLogin.json() as { token: string }).token;
+          assert.equal((await fetch(base + "/activity", { headers: { authorization: `Bearer ${staffToken}` } })).status, 403);
+          // The café owner still cannot see the salon's case.
+          const cafeRows = await (await request("/reviews", owner)).json() as { tenantId: string }[];
+          assert.ok(cafeRows.every(row => row.tenantId !== body.user.tenantId));
         });
       } finally {
         await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

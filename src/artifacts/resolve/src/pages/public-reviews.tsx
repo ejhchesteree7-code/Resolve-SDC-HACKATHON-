@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getListPublicReviewsQueryKey,
@@ -8,10 +8,7 @@ import {
 } from '@workspace/api-client-react';
 import './public-reviews.css';
 
-const OUTLETS: Record<string, string> = {
-  bangsar: 'Brew & Kin — Bangsar',
-  'mont-kiara': 'Brew & Kin — Mont Kiara',
-};
+type OutletInfo = { outlet: string; business: string; businessType: string };
 
 const keyOf = (r: PublicReview) => `${r.alias}|${r.rating}|${r.text}|${r.date}`;
 
@@ -30,11 +27,22 @@ function initials(v: string) {
 }
 
 export default function PublicReviewsPage({ outletId }: { outletId: string }) {
-  const name = OUTLETS[outletId];
-  if (!name) {
+  // Each registered outlet has its own slug; its name comes from Resolve, not from code.
+  const [info, setInfo] = useState<OutletInfo | null | 'loading'>('loading');
+  useEffect(() => {
+    let active = true;
+    setInfo('loading');
+    fetch(`/api/public/outlets/${encodeURIComponent(outletId)}`)
+      .then(async (response) => (response.ok ? (await response.json()) as OutletInfo : null))
+      .catch(() => null)
+      .then((value) => { if (active) setInfo(value); });
+    return () => { active = false; };
+  }, [outletId]);
+  if (info === 'loading') return <div className="pr-page" data-testid="state-outlet-loading" />;
+  if (!info) {
     return (
       <div className="pr-page">
-        <div className="pr-banner">Simulated guest page · stands in for the café’s Google review page · Resolve is the team tool behind it</div>
+        <div className="pr-banner">Simulated guest page · stands in for the business’s Google review page · Resolve is the team tool behind it</div>
         <main className="pr-wrap">
           <div className="pr-empty" data-testid="state-outlet-not-found">
             <h3>Listing not found</h3>
@@ -44,10 +52,10 @@ export default function PublicReviewsPage({ outletId }: { outletId: string }) {
       </div>
     );
   }
-  return <Listing outletId={outletId} name={name} />;
+  return <Listing outletId={outletId} name={info.outlet} kind={info.businessType === 'salon' ? 'hair salon' : 'café'} />;
 }
 
-function Listing({ outletId, name }: { outletId: string; name: string }) {
+function Listing({ outletId, name, kind }: { outletId: string; name: string; kind: string }) {
   const queryClient = useQueryClient();
   const queryKey = getListPublicReviewsQueryKey(outletId);
   const query = useListPublicReviews(outletId, { query: { queryKey, refetchInterval: 3000, refetchIntervalInBackground: true } });
@@ -89,11 +97,11 @@ function Listing({ outletId, name }: { outletId: string; name: string }) {
 
   return (
     <div className="pr-page">
-      <div className="pr-banner" data-testid="text-demo-label">Simulated guest page · stands in for the café’s Google review page · Resolve is the team tool behind it</div>
+      <div className="pr-banner" data-testid="text-demo-label">Simulated guest page · stands in for the {kind}’s Google review page · Resolve is the team tool behind it</div>
       <main className="pr-wrap">
         <header className="pr-hero">
           <div>
-            <div className="pr-kicker">Neighbourhood café · Kuala Lumpur</div>
+            <div className="pr-kicker">Neighbourhood {kind} · Kuala Lumpur</div>
             <h1 data-testid="text-outlet-name">{name}</h1>
             <p>Every review stays up, whatever the rating. When the team has checked a reply, it appears right under the guest's words.</p>
           </div>
@@ -170,7 +178,7 @@ function Listing({ outletId, name }: { outletId: string; name: string }) {
             </div>
           </form>
         </div>
-        <p className="pr-foot">Fictional café. This page is a simulated stand-in for a Google review page, used to show how a reply reaches the guest.</p>
+        <p className="pr-foot">Fictional {kind}. This page is a simulated stand-in for a Google review page, used to show how a reply reaches the guest.</p>
       </main>
     </div>
   );

@@ -17,11 +17,6 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
-let _demoUserId: string | null = null;
-
-export function setDemoUserId(id: string | null): void {
-  _demoUserId = id;
-}
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,8 +37,7 @@ export function setBaseUrl(url: string | null): void {
  * Useful for Expo bundles making token-gated API calls.
  * Pass `null` to clear the getter.
  *
- * NOTE: This function should never be used in web applications where session
- * token cookies are automatically associated with API calls by the browser.
+ * Resolve's web app uses this for its signed login session (no cookies).
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
@@ -364,7 +358,6 @@ export async function customFetch<T = unknown>(
   }
 
   const requestInfo = { method, url: resolveUrl(input) };
-  if (_demoUserId && !headers.has("x-demo-user-id")) headers.set("x-demo-user-id", _demoUserId);
 
   const response = await fetch(input, { ...init, method, headers });
 

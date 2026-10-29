@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Route, Switch, useLocation, useRoute } from 'wouter';
 import {
   Activity as ActivityIcon,
@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   Coffee,
   FileClock,
+  LogOut,
   Lightbulb,
   LoaderCircle,
   MessageSquareText,
@@ -30,7 +31,6 @@ import {
   useRejectReview,
   useSimulateReview,
   useUpdateReview,
-  setDemoUserId,
   type Activity as ActivityRecord,
   type Review,
   type ReviewAssignedRole,
@@ -39,12 +39,12 @@ import {
 import { ErrorBoundary } from '@/components/error-boundary';
 import NotFound from '@/pages/not-found';
 import PublicReviewsPage from '@/pages/public-reviews';
+import LoginPage from '@/pages/login';
+import RegisterPage from '@/pages/register';
+import { authHeader, checkSession, loadSavedSession, logOut, type Role, type Session, type SessionUser } from '@/lib/session';
 import QRCode from 'qrcode';
 
 const queryClient = new QueryClient();
-let currentDemoUser = 'demo-manager';
-setDemoUserId(currentDemoUser);
-type Role = 'Staff' | 'Manager' | 'Owner';
 type StatusFilter = 'All' | ReviewStatus;
 
 const statuses: StatusFilter[] = ['All', 'New', 'Needs approval', 'pending_owner', 'Resolved', 'Rejected'];
@@ -78,7 +78,8 @@ function initials(value: string) {
   return value.split(/\s+/).slice(0, 2).map((piece) => piece[0] ?? '').join('').toUpperCase();
 }
 
-function Shell({ children, role, setRole }: { children: ReactNode; role: Role; setRole: (role: Role) => void }) {
+function Shell({ children, user, onLogOut }: { children: ReactNode; user: SessionUser; onLogOut: () => void }) {
+  const role = user.role;
   const [location] = useLocation();
   const activeActivity = location === '/activity';
   return (
@@ -102,12 +103,12 @@ function Shell({ children, role, setRole }: { children: ReactNode; role: Role; s
         </div>
         <div className="rail-bottom">
           <div className="rail-note">
-            <strong>Built for owner-run cafés.</strong>
+            <strong>Built for owner-run businesses.</strong>
             <p>Every review becomes a case with an owner, a reason and a record.</p>
           </div>
           <div className="profile-chip">
-            <span className="profile-avatar">{initials(role)}</span>
-            <div className="profile-copy"><strong>Workspace role</strong><span>{role} view</span></div>
+            <span className="profile-avatar">{initials(user.name)}</span>
+            <div className="profile-copy"><strong>{user.name}</strong><span>{role} · {user.tenantName}</span></div>
           </div>
         </div>
       </aside>
@@ -115,12 +116,10 @@ function Shell({ children, role, setRole }: { children: ReactNode; role: Role; s
         <header className="topbar">
           <div className="breadcrumbs"><span>Resolve</span><ChevronRight size={13} /><b>{activeActivity ? 'Activity log' : 'Review inbox'}</b></div>
           <div className="top-actions">
-            <span className="role-label">Viewing as</span>
-            <select className="role-select" value={role} onChange={(event) => setRole(event.target.value as Role)} aria-label="Simulated role" data-testid="select-role">
-              <option value="Staff">Staff</option>
-              <option value="Manager">Manager</option>
-              <option value="Owner">Owner</option>
-            </select>
+            <div className="topbar-user">
+              <span className="topbar-user-role" data-testid="text-logged-in-role">Logged in as <b>{role}</b></span>
+              <button type="button" className="button" onClick={onLogOut} data-testid="button-logout"><LogOut />Log out</button>
+            </div>
           </div>
         </header>
         {children}
@@ -244,22 +243,24 @@ function Inbox({ role, setToast }: { role: Role; setToast: (message: string) => 
   );
 }
 
-const demoOutlets = [
-  { id: 'bangsar', name: 'Brew & Kin — Bangsar' },
-  { id: 'mont-kiara', name: 'Brew & Kin — Mont Kiara' },
-];
-
 function DemoLinks({ role }: { role: Role }) {
-  // The server scopes this metadata to the Manager's own outlet.
-  const insight = useGetInsights();
+  // Each business's outlets and review slugs come from the server, scoped to
+  // the whole business for an Owner and to their own outlet for a Manager.
+  const outlets = useQuery({
+    queryKey: ['outlets'],
+    enabled: role !== 'Staff',
+    queryFn: async () => {
+      const response = await fetch('/api/outlets', { headers: authHeader() });
+      if (!response.ok) throw new Error('Could not load outlets.');
+      return (await response.json()) as { slug: string; name: string }[];
+    },
+  });
   if (role === 'Staff') return null;
-  const visibleOutlets = demoOutlets.filter((outlet) =>
-    role === 'Owner' || outlet.name === insight.data?.outlet,
-  );
+  const visibleOutlets = (outlets.data ?? []).map((outlet) => ({ id: outlet.slug, name: outlet.name }));
   if (!visibleOutlets.length) return null;
   return (
-    <section aria-label="Demo links" data-testid="demo-links" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 18, marginBottom: 24 }}>
-      <h2 style={{ fontSize: 15, margin: '0 0 14px' }}>Demo links <span style={{ fontSize: 12, fontWeight: 400 }}>— Open the simulated guest page (stands in for Google)</span></h2>
+    <section aria-label="Review links" data-testid="demo-links" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 18, marginBottom: 24 }}>
+      <h2 style={{ fontSize: 15, margin: '0 0 14px' }}>Your review links <span style={{ fontSize: 12, fontWeight: 400 }}>— Print the QR for the counter or write it onto an NFC card. Opens the simulated guest page (stands in for Google)</span></h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 20 }}>
         {visibleOutlets.map((outlet) => <DemoOutletLink key={outlet.id} {...outlet} />)}
       </div>
@@ -562,7 +563,7 @@ function GuestFollowUp({ review, voucherAmount, role, alreadySent, onSent, vouch
     setBusy(true); setError('');
     try {
       const response = await fetch('/api/cases/' + review.id + '/followup', {
-        method: 'POST', headers: { 'content-type': 'application/json', 'x-demo-user-id': currentDemoUser },
+        method: 'POST', headers: { 'content-type': 'application/json', ...authHeader() },
         body: JSON.stringify({ message: draft }),
       });
       if (!response.ok) throw new Error(((await response.json().catch(() => ({}))) as { error?: string }).error ?? 'Could not send.');
@@ -660,37 +661,65 @@ function ActivityPage({ setToast }: { setToast: (message: string) => void }) {
   );
 }
 
-function AppRoutes({ role, setRole, setToast }: { role: Role; setRole: (role: Role) => void; setToast: (message: string) => void }) {
+function AppRoutes({ user, onLogOut, onLoggedIn, setToast }: { user: SessionUser | null; onLogOut: () => void; onLoggedIn: (session: Session) => void; setToast: (message: string) => void }) {
   const [location] = useLocation();
   const [isPublic, publicParams] = useRoute('/p/:outletId');
+  if (isPublic) return <ErrorBoundary resetKey={location}><PublicReviewsPage outletId={publicParams.outletId} /></ErrorBoundary>;
+  // Simulated sign-up is open to anyone; it starts a new business, not a session for an existing one.
+  if (location === '/register') return <ErrorBoundary resetKey={location}><RegisterPage onLoggedIn={onLoggedIn} /></ErrorBoundary>;
+  // Everything except the public guest page and sign-up needs a login.
+  if (!user) return <ErrorBoundary resetKey={location}><LoginPage onLoggedIn={onLoggedIn} /></ErrorBoundary>;
+  const role = user.role;
   return (
     <ErrorBoundary resetKey={location}>
-      {isPublic ? <PublicReviewsPage outletId={publicParams.outletId} /> : <Shell role={role} setRole={setRole}>
+      <Shell user={user} onLogOut={onLogOut}>
         <Switch>
           <Route path="/"><Inbox role={role} setToast={setToast} /></Route>
           <Route path="/activity">{role === 'Staff' ? <p className="inline-alert">Staff cannot view the activity log.</p> : <ActivityPage setToast={setToast} />}</Route>
           <Route component={NotFound} />
         </Switch>
-      </Shell>}
+      </Shell>
     </ErrorBoundary>
   );
 }
 
 function AppContent() {
-  const [role, setRole] = useState<Role>('Manager');
+  const [user, setUser] = useState<SessionUser | null>(() => loadSavedSession()?.user ?? null);
   const [toastMessage, setToastMessage] = useState('');
+  const [, navigate] = useLocation();
   const dismissToast = () => setToastMessage('');
-  const switchUser = (next: Role) => {
-    currentDemoUser = `demo-${next.toLowerCase()}`;
-    setDemoUserId(currentDemoUser);
+  const resetData = () => {
     void queryClient.cancelQueries();
     queryClient.clear();
     setToastMessage('');
-    setRole(next);
+  };
+  // A saved session is re-checked with the server; an expired one returns to login.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    void checkSession().then((fresh) => {
+      if (!active) return;
+      if (fresh) setUser(fresh);
+      else if (!loadSavedSession()) setUser(null);
+    });
+    return () => { active = false; };
+    // Only on first load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const onLoggedIn = (session: Session) => {
+    resetData();
+    setUser(session.user);
+    navigate('/');
+  };
+  const onLogOut = () => {
+    logOut();
+    resetData();
+    setUser(null);
+    navigate('/');
   };
   return (
     <>
-      <AppRoutes key={role} role={role} setRole={switchUser} setToast={setToastMessage} />
+      <AppRoutes key={user?.id ?? 'signed-out'} user={user} onLogOut={onLogOut} onLoggedIn={onLoggedIn} setToast={setToastMessage} />
       {toastMessage && <Toast message={toastMessage} onClose={dismissToast} />}
     </>
   );

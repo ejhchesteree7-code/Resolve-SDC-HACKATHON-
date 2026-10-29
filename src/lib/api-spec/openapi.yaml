@@ -295,10 +295,9 @@ paths:
 components:
   securitySchemes:
     DemoUser:
-      type: apiKey
-      in: header
-      name: x-demo-user-id
-      description: Demo identity only. Role, tenant and outlet are loaded from users; body.role is ignored.
+      type: http
+      scheme: bearer
+      description: Server-signed login session from POST /api/auth/login. Role, tenant and outlet are loaded from users; body.role is ignored.
   schemas:
     PublicReview:
       type: object
