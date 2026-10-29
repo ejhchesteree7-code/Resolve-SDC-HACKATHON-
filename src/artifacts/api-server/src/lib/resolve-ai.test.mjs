@@ -212,3 +212,16 @@ test("overdue: urgent cases after 2 h, others after 24 h, closed cases never", a
   assert.equal(isOverdue({ status: "Resolved", severity: "high", assignedRole: "Owner", createdAt: hoursAgo(100) }, now), false);
   assert.equal(isOverdue({ status: "Rejected", severity: "medium", assignedRole: "Manager", createdAt: hoursAgo(100) }, now), false);
 });
+
+test("new industries: each sends its own safety issue to the Owner with its own wording", async () => {
+  const check = async (businessType, text, label) => {
+    const result = await classifyNewReview({ text, outlet: "Test outlet", rating: 1, businessType }, { aiDisabled: true });
+    assert.equal(getCategoryLabel(result.category, businessType), label);
+    assert.equal(routeNewReview(result).assignedRole, "Owner");
+  };
+  await check("retail", "The milk I bought was expired.", "Product safety");
+  await check("workshop", "Brakes failed after the service.", "Vehicle safety");
+  await check("petcare", "My cat escaped while boarding.", "Pet safety");
+  // Overcharging at a workshop is a money dispute, so it also goes to the Owner.
+  await check("workshop", "Overcharged me RM200 more than the quote.", "Billing");
+});

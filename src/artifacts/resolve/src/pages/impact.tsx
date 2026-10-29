@@ -77,7 +77,7 @@ function ImpactBody({ data }: { data: Impact }) {
           <p className="impact-value">{routing.routingPct}%</p>
           <p className="impact-compare">{routing.urgentCaught} of {routing.urgentTotal} urgent cases reached the Owner · category {routing.categoryPct}% correct</p>
           <Verdict met={routing.routingPct >= phase1.targetRoutingPct} />
-          <p className="impact-how">Target: at least {phase1.targetRoutingPct}%. {routing.testCases} labelled synthetic reviews (café and salon, English, Malay and Manglish) run through the same rules on every refresh.</p>
+          <p className="impact-how">Target: at least {phase1.targetRoutingPct}%. {routing.testCases} labelled synthetic reviews (all 5 business types, English, Malay and Manglish) run through the same rules on every refresh.</p>
         </article>
         <article className="impact-tile" data-testid="tile-time-saved">
           <p className="impact-label">Estimated owner time saved</p>
