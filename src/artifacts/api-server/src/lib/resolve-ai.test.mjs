@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { classifyNewReview, routeNewReview } from "./resolve-ai.ts";
+import { classifyNewReview, getCategoryLabel, routeNewReview } from "./resolve-ai.ts";
 
 const testReview = {
   text: "Tunggu 40 minit, staff rude gila.",
@@ -127,4 +127,24 @@ test("a vague review is flagged as missing information and handed to a human", a
   assert.equal(result.category, "unclear");
   assert.equal(routing.assignedRole, "Manager");
   assert.match(routing.ruleFired, /R1/);
+});
+
+test("a hair salon uses its own words: hygiene complaints go to the Owner", async () => {
+  const salon = (text, rating) => classifyNewReview({ text, outlet: "Glow & Co — SS15", rating, businessType: "salon" }, { aiDisabled: true });
+  const hygiene = await salon("Scissors were not cleaned between customers. Very worrying.", 1);
+  assert.equal(hygiene.category, "food_safety");
+  assert.equal(hygiene.severity, "high");
+  assert.match(hygiene.reason, /hygiene & safety/);
+  assert.match(hygiene.draftReply, /Hygiene and your safety come first/);
+  assert.equal(routeNewReview(hygiene).assignedRole, "Owner");
+  const wait = await salon("Waited 45 minutes past my booking time.", 2);
+  assert.equal(wait.category, "service_speed");
+  assert.match(wait.draftReply, /appointments/);
+  const wrong = await salon("Asked for a light trim but it's too short now.", 2);
+  assert.equal(wrong.category, "order_accuracy");
+  // Café-only food words do not misfire for a salon ("hair in" is not a food safety issue here).
+  const praise = await salon("Love the new colour, the hair in the photos looks exactly like mine!", 5);
+  assert.equal(praise.category, "praise");
+  assert.equal(getCategoryLabel("food_safety", "salon"), "Hygiene & safety");
+  assert.equal(getCategoryLabel("food_safety"), "Food safety");
 });

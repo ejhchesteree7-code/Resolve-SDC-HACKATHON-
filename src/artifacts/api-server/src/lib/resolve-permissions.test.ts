@@ -363,6 +363,74 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
           const reviews = await fetch(base + "/reviews", { headers: { authorization: `Bearer ${body.token}` } });
           assert.equal(reviews.status, 200);
         });
+        await t.test("register: a salon signs up and works with no code change", async () => {
+          const post = (path: string, body: unknown, token?: string) => fetch(base + path, {
+            method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+            body: JSON.stringify(body),
+          });
+          const unique = randomUUID().slice(0, 8);
+          const signup = {
+            businessName: "Glow & Co Salon", businessType: "salon", outletName: "Glow & Co — SS15",
+            voucherLimitRm: 30, googlePlaceId: "ChIJ_simulated_123",
+            owner: { name: "Aisha Rahman", email: `aisha-${unique}@glowco.demo`, password: "salon-pass-1" },
+            team: [
+              { name: "Farah Lim", email: `farah-${unique}@glowco.demo`, role: "Manager" },
+              { name: "Danial Hakim", email: `danial-${unique}@glowco.demo`, role: "Staff" },
+            ],
+          };
+          for (const bad of [
+            { ...signup, businessType: "spaceship" }, { ...signup, owner: { ...signup.owner, password: "short" } },
+            { ...signup, team: [{ ...signup.team[0], email: signup.owner.email }] }, { ...signup, voucherLimitRm: -1 },
+          ]) assert.equal((await post("/auth/register", bad)).status, 400);
+          const created = await post("/auth/register", signup);
+          assert.equal(created.status, 201);
+          const body = await created.json() as {
+            token: string; user: { role: string; tenantId: string };
+            outlet: { slug: string; name: string };
+            accounts: { email: string; role: string; temporaryPassword: string | null }[];
+          };
+          assert.equal(body.user.role, "Owner");
+          assert.equal(body.outlet.name, "Glow & Co — SS15");
+          assert.match(body.outlet.slug, /^glow-co-ss15/);
+          assert.deepEqual(body.accounts.map(account => account.role), ["Owner", "Manager", "Staff"]);
+          assert.equal(body.accounts[0]!.temporaryPassword, null);
+          assert.ok(body.accounts.slice(1).every(account => /^[a-z]+-\d{4}$/.test(account.temporaryPassword ?? "")));
+          const [tenant] = await tx.select().from(tenantsTable).where(eq(tenantsTable.id, body.user.tenantId));
+          assert.equal(tenant!.businessType, "salon");
+          assert.equal(tenant!.managerVoucherLimitRm, 30);
+          assert.equal(tenant!.googlePlaceId, "ChIJ_simulated_123");
+          // Same email again is refused.
+          assert.equal((await post("/auth/register", signup)).status, 409);
+          // The new owner sees only their own outlet link, and none of the café's reviews.
+          const outlets = await (await fetch(base + "/outlets", { headers: { authorization: `Bearer ${body.token}` } })).json() as { slug: string }[];
+          assert.deepEqual(outlets.map(outlet => outlet.slug), [body.outlet.slug]);
+          const before = await (await fetch(base + "/reviews", { headers: { authorization: `Bearer ${body.token}` } })).json() as unknown[];
+          assert.equal(before.length, 0);
+          // A guest scans the salon's QR and leaves a hygiene complaint.
+          const info = await (await fetch(`${base}/public/outlets/${body.outlet.slug}`)).json() as { business: string; businessType: string };
+          assert.deepEqual(info, { outlet: "Glow & Co — SS15", business: "Glow & Co Salon", businessType: "salon" });
+          const guest = await post("/events/review-received", {
+            outletId: body.outlet.slug, source: "public_page", alias: "Kavitha", rating: 1,
+            text: "Scissors were not cleaned between customers.",
+          });
+          assert.equal(guest.status, 201);
+          const inbox = await (await fetch(base + "/reviews", { headers: { authorization: `Bearer ${body.token}` } })).json() as {
+            category: string; assignedRole: string; tenantId: string; outlet: string;
+          }[];
+          assert.equal(inbox.length, 1);
+          assert.equal(inbox[0]!.category, "Hygiene & safety");
+          assert.equal(inbox[0]!.assignedRole, "Owner");
+          assert.equal(inbox[0]!.outlet, "Glow & Co — SS15");
+          // Team members log in with their one-time passwords; the staff member cannot see the log.
+          const staffAccount = body.accounts[2]!;
+          const staffLogin = await post("/auth/login", { email: staffAccount.email, password: staffAccount.temporaryPassword });
+          assert.equal(staffLogin.status, 200);
+          const staffToken = (await staffLogin.json() as { token: string }).token;
+          assert.equal((await fetch(base + "/activity", { headers: { authorization: `Bearer ${staffToken}` } })).status, 403);
+          // The café owner still cannot see the salon's case.
+          const cafeRows = await (await request("/reviews", owner)).json() as { tenantId: string }[];
+          assert.ok(cafeRows.every(row => row.tenantId !== body.user.tenantId));
+        });
       } finally {
         await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
       }

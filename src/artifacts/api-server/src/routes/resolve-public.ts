@@ -1,23 +1,24 @@
 import { Router, type IRouter } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { activityTable, db, reviewsTable, tenantsTable } from "@workspace/db";
+import { activityTable, db, outletsTable, reviewsTable, tenantsTable } from "@workspace/db";
 import { ListPublicReviewsResponse, ReceivePublicReviewBody, ReceivePublicReviewResponse } from "@workspace/api-zod";
 import { receiveReview } from "../lib/resolve-received";
 import type { Store } from "../lib/resolve-cases";
 import type { classifyNewReview } from "../lib/resolve-ai";
 
-// Public ids bind to server-controlled demo tenant/outlet identities.
-const outlets = [
-  { id: "bangsar", outletId: "Brew & Kin — Bangsar", tenantId: "resolve-demo" },
-  { id: "mont-kiara", outletId: "Brew & Kin — Mont Kiara", tenantId: "resolve-demo" },
-];
-
 export function createPublicRouter(
   store: Store = db, classificationOptions: Parameters<typeof classifyNewReview>[1] = {},
 ): IRouter {
   const router: IRouter = Router();
+  // A public slug binds to a server-controlled tenant/outlet identity from the outlets table.
+  const findOutlet = async (slug: string) => {
+    const [outlet] = await store.select({
+      outletId: outletsTable.name, tenantId: outletsTable.tenantId,
+    }).from(outletsTable).where(eq(outletsTable.slug, slug));
+    return outlet;
+  };
   router.get("/public/outlets/:outletId/reviews", async (req, res): Promise<void> => {
-    const outlet = outlets.find(item => item.id === req.params.outletId);
+    const outlet = await findOutlet(String(req.params.outletId));
     if (!outlet) { res.status(404).json({ error: "Demo outlet not found." }); return; }
     // Projection is deliberately explicit: no drafts, IDs, staff, routing or voucher fields.
     // This endpoint performs SELECTs only; it never seeds or changes data.
@@ -34,6 +35,16 @@ export function createPublicRouter(
     res.json(ListPublicReviewsResponse.parse(rows.map(row => ({ ...row, date: row.date.toISOString() }))));
   });
 
+  // Business and outlet names for the guest page header (no internal fields).
+  router.get("/public/outlets/:outletId", async (req, res): Promise<void> => {
+    const [row] = await store.select({
+      outlet: outletsTable.name, business: tenantsTable.name, businessType: tenantsTable.businessType,
+    }).from(outletsTable).innerJoin(tenantsTable, eq(outletsTable.tenantId, tenantsTable.id))
+      .where(eq(outletsTable.slug, String(req.params.outletId)));
+    if (!row) { res.status(404).json({ error: "Demo outlet not found." }); return; }
+    res.json({ outlet: row.outlet, business: row.business ?? row.outlet, businessType: row.businessType });
+  });
+
   router.post("/events/review-received", async (req, res): Promise<void> => {
     const parsed = ReceivePublicReviewBody.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: "Provide an alias, a rating from 1 to 5, and review text of 1–500 characters." }); return; }
@@ -41,7 +52,7 @@ export function createPublicRouter(
     if (!input.alias.trim() || !input.text.trim()) {
       res.status(400).json({ error: "Alias and review text cannot be blank." }); return;
     }
-    const outlet = outlets.find(item => item.id === input.outletId);
+    const outlet = await findOutlet(input.outletId);
     if (!outlet) { res.status(404).json({ error: "Demo outlet not found." }); return; }
     const [tenant] = await store.select().from(tenantsTable).where(eq(tenantsTable.id, outlet.tenantId));
     if (!tenant) { res.status(404).json({ error: "Demo listing is not available." }); return; }
@@ -49,7 +60,7 @@ export function createPublicRouter(
       reviewer: input.alias.trim(), text: input.text.trim(), rating: input.rating, outlet: outlet.outletId,
     }, {
       tenantId: outlet.tenantId, outletId: outlet.outletId, managerVoucherLimitRm: tenant.managerVoucherLimitRm,
-      source: "public_page",
+      source: "public_page", businessType: tenant.businessType,
     }, {
       ...classificationOptions,
       onRequestComplete: metrics => req.log?.info(metrics, "Review AI classification request"),

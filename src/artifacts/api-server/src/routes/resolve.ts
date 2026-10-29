@@ -5,7 +5,8 @@ import {
   ListActivityResponse, ListReviewsQueryParams, ListReviewsResponse,
   RejectReviewBody, RejectReviewResponse, SimulateReviewResponse, UpdateReviewBody, UpdateReviewResponse,
 } from "@workspace/api-zod";
-import { activityTable, db, reviewsTable, tenantsTable, usersTable } from "@workspace/db";
+import { activityTable, db, outletsTable, reviewsTable, tenantsTable, usersTable } from "@workspace/db";
+import { profileFor } from "../lib/resolve-business-types";
 import { authorize, PermissionDenied, type User } from "../lib/resolve-permissions";
 import { bearerToken, verifySession } from "../lib/resolve-auth";
 import { auditWriter, CaseError, changeCase, type Store } from "../lib/resolve-cases";
@@ -34,6 +35,7 @@ export function createResolveRouter(store: Store = db): IRouter {
     const [user] = id ? await store.select({
       id: usersTable.id, role: usersTable.role, tenantId: usersTable.tenantId,
       outletId: usersTable.outletId, managerVoucherLimitRm: tenantsTable.managerVoucherLimitRm,
+      businessType: tenantsTable.businessType,
     }).from(usersTable).innerJoin(tenantsTable, eq(usersTable.tenantId, tenantsTable.id))
       .where(eq(usersTable.id, id)) : [];
     authorize(user ?? null, "view", null);
@@ -60,16 +62,33 @@ export function createResolveRouter(store: Store = db): IRouter {
   router.post("/reviews", async (req, res): Promise<void> => {
     const user: User = res.locals.user;
     authorize(user, "create", null);
-    const candidates = user.role === "Owner" ? samples : samples.filter(sample => sample.outlet === user.outletId);
+    const businessType = user.businessType;
+    // Cafés keep their two-outlet samples; other business types use their own samples at the user's outlet.
+    const pool = businessType && businessType !== "cafe"
+      ? profileFor(businessType).samples.map(sample => ({ ...sample, outlet: user.outletId }))
+      : samples;
+    const candidates = user.role === "Owner" ? pool : pool.filter(sample => sample.outlet === user.outletId);
     if (!candidates.length) { res.status(400).json({ error: "No demo samples exist for your outlet." }); return; }
     const sample = candidates[Math.floor(Math.random() * candidates.length)]!;
     const row = await receiveReview(store, sample, {
       tenantId: user.tenantId, outletId: sample.outlet,
-      managerVoucherLimitRm: user.managerVoucherLimitRm, source: "simulated",
+      managerVoucherLimitRm: user.managerVoucherLimitRm, source: "simulated", businessType,
     }, {
       onRequestComplete: metrics => req.log.info(metrics, "Review AI classification request"),
     });
     res.status(201).json(SimulateReviewResponse.parse(toApiReview(row)));
+  });
+
+  // The business's outlets and their public review slugs (for links and QR codes).
+  router.get("/outlets", async (_req, res): Promise<void> => {
+    const user: User = res.locals.user;
+    authorize(user, "view", null);
+    const rows = await store.select({ slug: outletsTable.slug, name: outletsTable.name })
+      .from(outletsTable).where(and(
+        eq(outletsTable.tenantId, user.tenantId),
+        user.role === "Owner" ? undefined : eq(outletsTable.name, user.outletId),
+      )).orderBy(outletsTable.createdAt, outletsTable.slug);
+    res.json(rows);
   });
 
   router.get(["/reviews/:reviewId", "/cases/:reviewId"], async (req, res): Promise<void> => {

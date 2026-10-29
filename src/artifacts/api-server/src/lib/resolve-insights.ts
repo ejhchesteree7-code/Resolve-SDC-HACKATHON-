@@ -27,6 +27,12 @@ const actions: Record<string, string> = {
   "Billing": "Owner to check the payment records and contact the guests directly.",
   "Atmosphere": "Review noise, temperature and seating at the times guests mention.",
   "Value": "Check that menu prices match the bill and that portions feel fair.",
+  // Hair salon wording for the same shared categories.
+  "Wait time": "Check how appointments are spaced on the busiest days, and tell waiting clients how long it will take.",
+  "Hygiene & safety": "Owner to check tool cleaning and product safety today and contact the clients directly.",
+  "Wrong service": "Confirm each request with the client, with a photo if possible, before starting.",
+  "Service quality": "Share these cases with the stylists and agree a quality check before the client leaves.",
+  "Pricing": "Check that the price list matches the bill and is explained before the service starts.",
 };
 const fallbackAction = "Review these cases together and agree one fix with the team.";
 

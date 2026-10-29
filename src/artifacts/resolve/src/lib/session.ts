@@ -72,3 +72,32 @@ export async function checkSession(): Promise<SessionUser | null> {
 export function logOut() {
   save(null);
 }
+
+export type RegisterPayload = {
+  businessName: string;
+  businessType: 'cafe' | 'salon';
+  outletName: string;
+  voucherLimitRm: number;
+  googlePlaceId: string;
+  owner: { name: string; email: string; password: string };
+  team: { name: string; email: string; role: 'Manager' | 'Staff' }[];
+};
+export type Registration = Session & {
+  business: { name: string; type: string; typeLabel: string };
+  outlet: { slug: string; name: string };
+  accounts: { name: string; email: string; role: Role; temporaryPassword: string | null }[];
+};
+
+/** Simulated sign-up. The session is returned but only saved when the owner continues. */
+export async function registerBusiness(payload: RegisterPayload): Promise<Registration> {
+  const response = await fetch('/api/auth/register', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => ({})) as Partial<Registration> & { error?: string };
+  if (!response.ok || !body.token || !body.user) throw new Error(body.error ?? 'Could not register. Please try again.');
+  return body as Registration;
+}
+
+export function startSession(session: Session) {
+  save(session);
+}

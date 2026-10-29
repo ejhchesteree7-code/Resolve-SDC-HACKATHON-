@@ -5,6 +5,7 @@ export type User = {
   tenantId: string;
   outletId: string;
   managerVoucherLimitRm: number;
+  businessType?: string;
 };
 export type PermissionCase = {
   tenantId: string;

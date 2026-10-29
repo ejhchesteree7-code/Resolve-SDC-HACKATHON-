@@ -1,7 +1,9 @@
 import { type FormEvent, useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
+import { Link } from 'wouter';
 import { logIn, type Session } from '@/lib/session';
 import './login.css';
+import './register.css';
 
 // Synthetic demo accounts for judging. They log in through the same password
 // check as any other account; the buttons only fill in the form for speed.
@@ -72,6 +74,7 @@ export default function LoginPage({ onLoggedIn }: { onLoggedIn: (session: Sessio
             </div>
             <p className="login-demo-note">Demo password for all three: <code>{DEMO_PASSWORD}</code></p>
           </div>
+          <p className="login-switch">New business? <Link href="/register" data-testid="link-register">Register your business</Link></p>
         </div>
       </section>
     </div>

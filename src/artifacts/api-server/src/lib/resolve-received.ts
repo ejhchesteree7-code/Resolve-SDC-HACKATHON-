@@ -5,14 +5,17 @@ import { applyVoucherV1 } from "./resolve-permissions";
 import { auditWriter, type Store } from "./resolve-cases";
 
 type ReceivedReview = ReviewInput & { reviewer: string; rating: number };
-type Context = { tenantId: string; outletId: string; managerVoucherLimitRm: number; source: "simulated" | "public_page" };
+type Context = {
+  tenantId: string; outletId: string; managerVoucherLimitRm: number; source: "simulated" | "public_page";
+  businessType?: string | null;
+};
 
 /** Shared ingestion for the existing simulator and public review-received events. */
 export async function receiveReview(
   store: Store, input: ReceivedReview, context: Context,
   options: Parameters<typeof classifyNewReview>[1] = {},
 ) {
-  const classification = await classifyNewReview(input, options);
+  const classification = await classifyNewReview({ ...input, businessType: context.businessType }, options);
   // A vague review has no actionable detail, so a human must ask the guest for more.
   const missingInfo = classification.category === "unclear";
   const routing = routeNewReview(classification, missingInfo);
@@ -23,7 +26,7 @@ export async function receiveReview(
     const [created] = await tx.insert(reviewsTable).values({
       id, ...input, tenantId: context.tenantId, outletId: context.outletId, source: context.source,
       sentiment: classification.sentiment, language: classification.language,
-      category: getCategoryLabel(classification.category), severity: classification.severity,
+      category: getCategoryLabel(classification.category, context.businessType), severity: classification.severity,
       reason: classification.reason, confidence: classification.confidence, draftReply: classification.draftReply,
       usedFallback: classification.usedFallback, voucherAmount, assignedRole: routing.assignedRole,
       status: routing.status === "Needs owner" ? "pending_owner" : routing.status,
@@ -31,7 +34,7 @@ export async function receiveReview(
     }).returning();
     const log = auditWriter(tx, id, "Resolve", "System");
     await log("review_received", `${context.source === "public_page" ? "Public page" : "Simulated"} review received from ${input.reviewer}`);
-    await log("ai_classified", `${classification.usedFallback ? "Basic mode · " : ""}${getCategoryLabel(classification.category)}`);
+    await log("ai_classified", `${classification.usedFallback ? "Basic mode · " : ""}${getCategoryLabel(classification.category, context.businessType)}`);
     await log("routed", routing.ruleFired);
     if (voucherAmount !== null) {
       await log("voucher_proposed", `AI suggested RM ${voucherAmount.toFixed(2)} for human approval`);

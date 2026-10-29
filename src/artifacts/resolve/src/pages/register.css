@@ -1,0 +1,66 @@
+.reg-page { min-height:100vh;background:hsl(var(--background));color:hsl(var(--foreground));font-family:var(--app-font-sans);padding:32px 24px 56px;box-sizing:border-box; }
+.reg-wrap { max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:28px; }
+.reg-top { display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap; }
+.reg-brand { color:hsl(var(--foreground)); }
+.reg-brand .login-mark { border-color:hsl(var(--accent));color:hsl(22 72% 45%); }
+.reg-link { font-size:14px;font-weight:500;color:hsl(var(--primary)); }
+.reg-heading { display:flex;flex-direction:column;gap:8px; }
+.reg-heading h1 { margin:0;font:500 40px/1.1 var(--app-font-serif);letter-spacing:-1px; }
+.reg-heading p { margin:0;font-size:16px;color:hsl(var(--muted-foreground)); }
+.reg-columns { display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start; }
+.reg-form { flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:20px; }
+.reg-card { background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:16px;box-sizing:border-box; }
+.reg-card h2 { margin:0;font-size:17px; }
+.reg-card-head { display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap; }
+.reg-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px; }
+.reg-grid-3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.reg-span { grid-column:1 / -1; }
+.reg-card label { display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500;min-width:0; }
+.reg-card input,.reg-card select { height:44px;border:1px solid hsl(var(--border));border-radius:10px;padding:0 12px;font:inherit;font-weight:400;background:hsl(0 0% 100%);color:hsl(var(--foreground));outline:none;min-width:0; }
+.reg-card input:focus,.reg-card select:focus { border-color:hsl(var(--primary));box-shadow:0 0 0 3px hsl(var(--primary)/.12); }
+.reg-optional { font-weight:400;font-size:12px;color:hsl(var(--muted-foreground)); }
+.reg-hint { font-size:13px;color:hsl(var(--muted-foreground)); }
+.reg-example { min-height:36px;border:1px solid hsl(var(--border));border-radius:999px;background:hsl(var(--secondary));padding:0 14px;font:inherit;font-size:13px;font-weight:600;color:hsl(var(--secondary-foreground));cursor:pointer; }
+.reg-example:hover { border-color:hsl(var(--primary)); }
+.reg-team-row { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) minmax(0,.8fr) 44px;gap:12px;align-items:end; }
+.reg-remove { height:44px;border:1px solid hsl(var(--border));border-radius:10px;background:transparent;color:hsl(var(--muted-foreground));display:grid;place-items:center;cursor:pointer; }
+.reg-remove:hover { color:hsl(var(--destructive));border-color:hsl(var(--destructive)); }
+.reg-add { align-self:flex-start;min-height:44px;border:1px dashed hsl(var(--primary));border-radius:10px;background:transparent;color:hsl(var(--primary));font:inherit;font-weight:700;padding:0 16px;display:inline-flex;align-items:center;gap:6px;cursor:pointer; }
+.reg-submit-row { display:flex;align-items:center;gap:16px;flex-wrap:wrap; }
+.reg-submit { padding:0 28px; }
+.reg-aside { flex:1 1 300px;background:hsl(var(--sidebar));color:hsl(var(--sidebar-foreground));border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:18px;box-sizing:border-box; }
+.reg-aside h2 { margin:0;font-size:17px; }
+.reg-aside p { margin:0;font-size:14px;line-height:1.55;color:hsl(42 16% 82%); }
+.reg-aside .reg-aside-kicker { font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:hsl(22 70% 70%);margin-bottom:8px; }
+.reg-chips { display:flex;flex-wrap:wrap;gap:8px; }
+.reg-chips span { font-size:13px;padding:6px 10px;border-radius:999px;background:hsl(var(--sidebar-accent)); }
+.reg-badge { align-self:flex-start;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:6px 12px;border-radius:999px;background:hsl(140 30% 88%);color:hsl(157 40% 22%); }
+.reg-qr-card { flex:1 1 360px; }
+.reg-qr { display:flex;gap:20px;align-items:center;flex-wrap:wrap; }
+.reg-qr img { border:1px solid hsl(var(--border));border-radius:8px;background:#fff;padding:6px; }
+.reg-qr-wait { width:148px;height:148px;display:grid;place-items:center;font-size:12px;color:hsl(var(--muted-foreground)); }
+.reg-qr-copy { flex:1 1 160px;min-width:0;display:flex;flex-direction:column;gap:8px; }
+.reg-qr-copy a { font-size:14px;overflow-wrap:anywhere;color:hsl(var(--primary)); }
+.reg-qr-copy p { margin:0;font-size:13px;line-height:1.5;color:hsl(var(--muted-foreground)); }
+.reg-qr-actions { display:flex;gap:10px;flex-wrap:wrap; }
+.reg-qr-actions .button { min-height:44px;font-size:13px;text-decoration:none; }
+.reg-accounts { flex:999 1 520px;min-width:0; }
+.reg-table-wrap { overflow-x:auto; }
+.reg-accounts table { width:100%;border-collapse:collapse;font-size:14px;min-width:560px; }
+.reg-accounts th { text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:hsl(var(--muted-foreground));padding:10px 8px;border-bottom:1px solid hsl(var(--border)); }
+.reg-accounts td { padding:12px 8px;border-bottom:1px solid hsl(var(--secondary));vertical-align:top; }
+.reg-accounts td b { display:block; }
+.reg-accounts td span { font-size:13px;color:hsl(var(--muted-foreground)); }
+.reg-accounts code { font-family:var(--app-font-mono);background:hsl(var(--secondary));padding:3px 7px;border-radius:5px; }
+.reg-role { display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px !important;font-weight:700; }
+.reg-role-owner { background:hsl(var(--sidebar));color:hsl(var(--sidebar-foreground)) !important; }
+.reg-role-manager { background:hsl(140 30% 88%);color:hsl(157 40% 22%) !important; }
+.reg-role-staff { background:hsl(22 70% 90%);color:hsl(20 70% 28%) !important; }
+.reg-continue { align-self:flex-start;padding:0 28px; }
+.login-switch { margin:0;font-size:15px;color:hsl(var(--muted-foreground)); }
+.login-switch a { font-weight:700;color:hsl(var(--primary)); }
+@media (max-width: 760px) {
+  .reg-grid,.reg-grid-3 { grid-template-columns:1fr; }
+  .reg-team-row { grid-template-columns:1fr 1fr;padding-bottom:12px;border-bottom:1px solid hsl(var(--border)); }
+  .reg-heading h1 { font-size:32px; }
+}

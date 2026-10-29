@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Route, Switch, useLocation, useRoute } from 'wouter';
 import {
   Activity as ActivityIcon,
@@ -40,6 +40,7 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import NotFound from '@/pages/not-found';
 import PublicReviewsPage from '@/pages/public-reviews';
 import LoginPage from '@/pages/login';
+import RegisterPage from '@/pages/register';
 import { authHeader, checkSession, loadSavedSession, logOut, type Role, type Session, type SessionUser } from '@/lib/session';
 import QRCode from 'qrcode';
 
@@ -102,7 +103,7 @@ function Shell({ children, user, onLogOut }: { children: ReactNode; user: Sessio
         </div>
         <div className="rail-bottom">
           <div className="rail-note">
-            <strong>Built for owner-run cafés.</strong>
+            <strong>Built for owner-run businesses.</strong>
             <p>Every review becomes a case with an owner, a reason and a record.</p>
           </div>
           <div className="profile-chip">
@@ -242,22 +243,24 @@ function Inbox({ role, setToast }: { role: Role; setToast: (message: string) => 
   );
 }
 
-const demoOutlets = [
-  { id: 'bangsar', name: 'Brew & Kin — Bangsar' },
-  { id: 'mont-kiara', name: 'Brew & Kin — Mont Kiara' },
-];
-
 function DemoLinks({ role }: { role: Role }) {
-  // The server scopes this metadata to the Manager's own outlet.
-  const insight = useGetInsights();
+  // Each business's outlets and review slugs come from the server, scoped to
+  // the whole business for an Owner and to their own outlet for a Manager.
+  const outlets = useQuery({
+    queryKey: ['outlets'],
+    enabled: role !== 'Staff',
+    queryFn: async () => {
+      const response = await fetch('/api/outlets', { headers: authHeader() });
+      if (!response.ok) throw new Error('Could not load outlets.');
+      return (await response.json()) as { slug: string; name: string }[];
+    },
+  });
   if (role === 'Staff') return null;
-  const visibleOutlets = demoOutlets.filter((outlet) =>
-    role === 'Owner' || outlet.name === insight.data?.outlet,
-  );
+  const visibleOutlets = (outlets.data ?? []).map((outlet) => ({ id: outlet.slug, name: outlet.name }));
   if (!visibleOutlets.length) return null;
   return (
-    <section aria-label="Demo links" data-testid="demo-links" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 18, marginBottom: 24 }}>
-      <h2 style={{ fontSize: 15, margin: '0 0 14px' }}>Demo links <span style={{ fontSize: 12, fontWeight: 400 }}>— Open the simulated guest page (stands in for Google)</span></h2>
+    <section aria-label="Review links" data-testid="demo-links" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 18, marginBottom: 24 }}>
+      <h2 style={{ fontSize: 15, margin: '0 0 14px' }}>Your review links <span style={{ fontSize: 12, fontWeight: 400 }}>— Print the QR for the counter or write it onto an NFC card. Opens the simulated guest page (stands in for Google)</span></h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 20 }}>
         {visibleOutlets.map((outlet) => <DemoOutletLink key={outlet.id} {...outlet} />)}
       </div>
@@ -662,7 +665,9 @@ function AppRoutes({ user, onLogOut, onLoggedIn, setToast }: { user: SessionUser
   const [location] = useLocation();
   const [isPublic, publicParams] = useRoute('/p/:outletId');
   if (isPublic) return <ErrorBoundary resetKey={location}><PublicReviewsPage outletId={publicParams.outletId} /></ErrorBoundary>;
-  // Everything except the public guest page needs a login.
+  // Simulated sign-up is open to anyone; it starts a new business, not a session for an existing one.
+  if (location === '/register') return <ErrorBoundary resetKey={location}><RegisterPage onLoggedIn={onLoggedIn} /></ErrorBoundary>;
+  // Everything except the public guest page and sign-up needs a login.
   if (!user) return <ErrorBoundary resetKey={location}><LoginPage onLoggedIn={onLoggedIn} /></ErrorBoundary>;
   const role = user.role;
   return (
