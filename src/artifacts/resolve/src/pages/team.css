@@ -1,0 +1,32 @@
+.team-card { background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:12px;padding:20px;margin-bottom:14px;display:flex;flex-direction:column;gap:12px; }
+.team-card h2 { margin:0;font:500 19px var(--app-font-serif); }
+.team-table-wrap { overflow-x:auto; }
+.team-table { width:100%;border-collapse:collapse;font-size:12px;min-width:560px; }
+.team-table th { text-align:left;font:10px var(--app-font-mono);text-transform:uppercase;letter-spacing:.8px;color:hsl(var(--muted-foreground));padding:8px;border-bottom:1px solid hsl(var(--border)); }
+.team-table td { padding:12px 8px;border-bottom:1px solid hsl(var(--border));vertical-align:middle; }
+.team-table td b { display:block;font-weight:600; }
+.team-table td span { font-size:11px;color:hsl(var(--muted-foreground)); }
+.team-table tr.is-removed td { opacity:.6; }
+.team-role { display:inline-block;padding:3px 9px;border-radius:999px;font-size:10px !important;font-weight:700; }
+.team-role-owner { background:hsl(var(--sidebar));color:hsl(var(--sidebar-foreground)) !important; }
+.team-role-manager { background:hsl(140 30% 88%);color:hsl(157 40% 22%) !important; }
+.team-role-staff { background:hsl(22 70% 90%);color:hsl(20 70% 28%) !important; }
+.team-access.on { color:hsl(157 40% 26%) !important;font-weight:600; }
+.team-access.off { color:hsl(4 62% 40%) !important;font-weight:600; }
+.team-actions { display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap; }
+.team-add { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) minmax(0,.7fr) auto;gap:12px;align-items:end; }
+.team-add label,.account-form label { display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:500; }
+.team-add input,.team-add select,.account-form input { height:40px;border:1px solid hsl(var(--border));border-radius:8px;padding:0 12px;font:inherit;font-weight:400;background:hsl(42 31% 97%);color:hsl(var(--foreground));outline:none; }
+.team-add input:focus,.team-add select:focus,.account-form input:focus { border-color:hsl(var(--primary));box-shadow:0 0 0 3px hsl(var(--primary)/.1); }
+.team-add .button { height:40px; }
+.team-password { display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:hsl(156 26% 89%);border:1px solid hsl(156 20% 79%);border-radius:12px;padding:16px 18px;margin-bottom:14px; }
+.team-password > div { flex:1 1 320px; }
+.team-password strong { font-size:13px; }
+.team-password p { margin:4px 0 0;font-size:12px;color:hsl(160 9% 32%); }
+.team-password code { font:600 18px var(--app-font-mono);background:hsl(var(--card));padding:8px 14px;border-radius:8px;border:1px solid hsl(var(--border)); }
+.account-card { max-width:520px; }
+.account-form { display:flex;flex-direction:column;gap:12px; }
+.account-form .button { align-self:flex-start; }
+.account-ok { margin:0;padding:10px 12px;background:hsl(140 30% 88%);border-radius:7px;color:hsl(157 45% 20%);font-size:12px; }
+.sr-only { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap; }
+@media (max-width: 760px) { .team-add { grid-template-columns:1fr; } }

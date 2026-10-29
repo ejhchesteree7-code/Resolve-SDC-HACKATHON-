@@ -7,7 +7,7 @@ import type { AiCategory } from "./resolve-ai";
  * reach the Owner (food safety / hygiene, harassment, money disputes).
  */
 export type EvalCase = {
-  businessType: "cafe" | "salon";
+  businessType: "cafe" | "salon" | "retail" | "workshop" | "petcare";
   rating: number;
   text: string;
   category: AiCategory;
@@ -61,4 +61,22 @@ export const evalSet: EvalCase[] = [
   { businessType: "salon", rating: 4, text: "Tempat bersih dan staff mesra.", category: "praise", urgent: false },
   { businessType: "salon", rating: 3, text: "Fine, nothing special.", category: "unclear", urgent: false },
   { businessType: "salon", rating: 3, text: "Okay lah.", category: "unclear", urgent: false },
+  // Retail shop
+  { businessType: "retail", rating: 2, text: "Queue at the checkout took 25 minutes, only one cashier.", category: "service_speed", urgent: false },
+  { businessType: "retail", rating: 1, text: "Sold me expired milk, please check your shelves.", category: "food_safety", urgent: true },
+  { businessType: "retail", rating: 2, text: "Got the wrong size and the item I wanted was out of stock.", category: "order_accuracy", urgent: false },
+  { businessType: "retail", rating: 2, text: "Earphones stopped working after a week, feels fake.", category: "food_quality", urgent: false },
+  { businessType: "retail", rating: 5, text: "Great shop, friendly staff.", category: "praise", urgent: false },
+  // Car workshop
+  { businessType: "workshop", rating: 1, text: "Brakes failed the day after my service, this is dangerous.", category: "food_safety", urgent: true },
+  { businessType: "workshop", rating: 2, text: "Car still not ready after five days, kept delaying.", category: "service_speed", urgent: false },
+  { businessType: "workshop", rating: 2, text: "They changed my battery without asking me first.", category: "order_accuracy", urgent: false },
+  { businessType: "workshop", rating: 2, text: "Same problem came back, aircond still not fixed.", category: "food_quality", urgent: false },
+  { businessType: "workshop", rating: 1, text: "Overcharged me RM300 more than the quote, I want a refund.", category: "billing", urgent: true },
+  // Pet care
+  { businessType: "petcare", rating: 1, text: "My dog came back from grooming with a bleeding cut.", category: "food_safety", urgent: true },
+  { businessType: "petcare", rating: 1, text: "Our cat escaped during boarding, we are devastated.", category: "food_safety", urgent: true },
+  { businessType: "petcare", rating: 2, text: "Asked for a light trim but they shaved her completely.", category: "order_accuracy", urgent: false },
+  { businessType: "petcare", rating: 2, text: "Cat came back still dirty and smelly.", category: "food_quality", urgent: false },
+  { businessType: "petcare", rating: 5, text: "Love this place, very caring staff.", category: "praise", urgent: false },
 ];

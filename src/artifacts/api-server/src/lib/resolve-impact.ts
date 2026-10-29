@@ -1,5 +1,6 @@
 import { classifyNewReview, routeNewReview } from "./resolve-ai";
 import { evalSet } from "./resolve-eval-set";
+import { isOverdue, isUrgent, TARGET_HOURS } from "./resolve-overdue";
 
 /**
  * Impact measured from Resolve's own records, compared with the Phase 1 proposal.
@@ -14,6 +15,7 @@ export const PHASE1 = {
 };
 /** Assumption for the weekly estimate, stated on the page. */
 export const REVIEWS_PER_WEEK = 30;
+export const RESPONSE_TARGETS = TARGET_HOURS;
 
 export const MANUAL_STEPS = [
   "Check each review site for new reviews",
@@ -27,7 +29,10 @@ export const MANUAL_STEPS = [
 export const RESOLVE_STEPS = ["Read the drafted reply", "Approve, edit or reject it"];
 
 type ActivityRow = { reviewId: string; action: string; role: string; details: string };
-type CaseRow = { id: string; missingInfo: boolean; ruleFired: string | null; status: string };
+type CaseRow = {
+  id: string; missingInfo: boolean; ruleFired: string | null; status: string;
+  severity?: string; assignedRole?: string; createdAt?: Date;
+};
 
 const HUMAN_ROLES = new Set(["Staff", "Manager", "Owner"]);
 const handledPattern = /handled in (\d+(?:\.\d+)?) s/;
@@ -67,6 +72,8 @@ export function measureFromLog(activity: ActivityRow[], cases: CaseRow[]) {
       needsMoreDetail: cases.filter(row => row.missingInfo).length,
       rejectedByHuman: cases.filter(row => row.status === "Rejected").length,
       possibleDuplicates: cases.filter(row => row.ruleFired?.startsWith("R0")).length,
+      overdueUrgent: cases.filter(row => row.createdAt && isUrgent(row as Required<CaseRow>) && isOverdue(row as Required<CaseRow>)).length,
+      overdueOther: cases.filter(row => row.createdAt && !isUrgent(row as Required<CaseRow>) && isOverdue(row as Required<CaseRow>)).length,
     },
     totalCases: cases.length,
   };

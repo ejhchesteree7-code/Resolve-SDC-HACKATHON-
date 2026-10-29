@@ -6,7 +6,7 @@ import { registerBusiness, startSession, type Registration, type Session } from 
 import './login.css';
 import './register.css';
 
-type BusinessType = 'cafe' | 'salon';
+type BusinessType = 'cafe' | 'salon' | 'retail' | 'workshop' | 'petcare';
 type TeamRow = { name: string; email: string; role: 'Manager' | 'Staff' };
 
 // What the settings panel shows; the server holds the same lists per business type.
@@ -20,6 +20,21 @@ const typeInfo: Record<BusinessType, { label: string; categories: string[]; safe
     label: 'hair salon',
     categories: ['Wait time', 'Service quality', 'Wrong service', 'Staff attitude', 'Pricing', 'Hygiene & safety'],
     safety: 'Hygiene and safety complaints',
+  },
+  retail: {
+    label: 'retail shop',
+    categories: ['Slow checkout', 'Product quality', 'Wrong item or stock', 'Staff attitude', 'Pricing', 'Product safety'],
+    safety: 'Unsafe or expired products',
+  },
+  workshop: {
+    label: 'car workshop',
+    categories: ['Repair delay', 'Repair quality', 'Unapproved work', 'Staff attitude', 'Pricing', 'Vehicle safety'],
+    safety: 'Vehicle safety complaints and overcharging',
+  },
+  petcare: {
+    label: 'pet care business',
+    categories: ['Wait time', 'Care quality', 'Wrong service', 'Staff attitude', 'Pricing', 'Pet safety'],
+    safety: 'Injured, sick or lost pets',
   },
 };
 
@@ -100,6 +115,9 @@ export default function RegisterPage({ onLoggedIn }: { onLoggedIn: (session: Ses
                   <select value={businessType} onChange={(e) => setBusinessType(e.target.value as BusinessType)} data-testid="select-business-type">
                     <option value="salon">Hair salon</option>
                     <option value="cafe">Café</option>
+                    <option value="retail">Retail shop</option>
+                    <option value="workshop">Car workshop</option>
+                    <option value="petcare">Pet care (shop, grooming, boarding)</option>
                   </select>
                 </label>
                 <label>First outlet<input value={outletName} onChange={(e) => setOutletName(e.target.value)} required maxLength={80} placeholder="e.g. Glow & Co — SS15" data-testid="input-outlet-name" /></label>

@@ -85,7 +85,7 @@ export function logOut() {
 
 export type RegisterPayload = {
   businessName: string;
-  businessType: 'cafe' | 'salon';
+  businessType: 'cafe' | 'salon' | 'retail' | 'workshop' | 'petcare';
   outletName: string;
   voucherLimitRm: number;
   googlePlaceId: string;

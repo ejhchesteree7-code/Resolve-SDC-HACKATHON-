@@ -33,6 +33,19 @@ const actions: Record<string, string> = {
   "Wrong service": "Confirm each request with the client, with a photo if possible, before starting.",
   "Service quality": "Share these cases with the stylists and agree a quality check before the client leaves.",
   "Pricing": "Check that the price list matches the bill and is explained before the service starts.",
+  // Retail shop
+  "Slow checkout": "Open a second counter at the busiest hours and keep the queue moving.",
+  "Product safety": "Owner to pull the affected stock today and contact the customers directly.",
+  "Wrong item or stock": "Check shelf labels and restock the items customers keep asking for.",
+  "Product quality": "Check the supplier for these products and offer returns with a receipt.",
+  // Car workshop
+  "Repair delay": "Give realistic completion times and update customers when a job runs late.",
+  "Vehicle safety": "Owner to contact the customers today and recheck the vehicles as a priority.",
+  "Unapproved work": "Get the customer's OK, with the price, before any extra work or parts.",
+  "Repair quality": "Recheck these jobs and add a final test before handing the car back.",
+  // Pet care
+  "Pet safety": "Owner to contact the pet owners today and review handling and supervision.",
+  "Care quality": "Review cleaning and feeding checklists for every stay and groom.",
 };
 const fallbackAction = "Review these cases together and agree one fix with the team.";
 
@@ -40,7 +53,7 @@ const fallbackAction = "Review these cases together and agree one fix with the t
 const ignored = new Set(["Praise", "Unclear", "Other"]);
 
 /**
- * Finds the complaint that keeps coming up this month: the most common negative
+ * Finds the complaint that keeps coming up in the last 30 days: the most common negative
  * category for one outlet, and the weekday it clusters on when there is a clear one.
  */
 export function computeInsight(rows: InsightRow[], fallbackOutlet: string): Insight {
@@ -56,9 +69,9 @@ export function computeInsight(rows: InsightRow[], fallbackOutlet: string): Insi
   }
   if (!best.length) {
     return {
-      title: "No repeating complaints this month",
+      title: "No repeating complaints in the last 30 days",
       count: 0,
-      period: "this month",
+      period: "last 30 days",
       flagged: false,
       outlet: fallbackOutlet,
       action: "Keep replying quickly. We will flag a pattern as soon as one appears.",
@@ -73,11 +86,13 @@ export function computeInsight(rows: InsightRow[], fallbackOutlet: string): Insi
   const clustered = best.length >= 3 && peakCount >= 2 && peakCount / best.length >= 0.6;
 
   return {
-    title: clustered ? `${category} keeps coming up, mostly on ${weekdays[peakDay]}` : `${category} keeps coming up`,
+    // One complaint is worth a look; "keeps coming up" needs at least two.
+    title: clustered ? `${category} keeps coming up, mostly on ${weekdays[peakDay]}`
+      : best.length >= 2 ? `${category} keeps coming up` : `${category}: one complaint to look at`,
     count: best.length,
     period: clustered
-      ? `${best.length} complaints this month, ${peakCount} on ${weekdays[peakDay]}`
-      : `${best.length} complaints this month`,
+      ? `${best.length} complaints in 30 days, ${peakCount} on ${weekdays[peakDay]}`
+      : `${best.length} ${best.length === 1 ? "complaint" : "complaints"} in 30 days`,
     flagged: best.length >= 3,
     outlet: best[0]!.outlet,
     action: actions[category] ?? fallbackAction,

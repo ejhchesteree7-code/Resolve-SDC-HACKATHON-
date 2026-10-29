@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Route, Switch, useLocation, useRoute } from 'wouter';
 import {
   Activity as ActivityIcon,
@@ -12,6 +12,8 @@ import {
   Coffee,
   FileClock,
   Gauge,
+  Users,
+  UserRound,
   LogOut,
   Lightbulb,
   LoaderCircle,
@@ -43,13 +45,30 @@ import PublicReviewsPage from '@/pages/public-reviews';
 import LoginPage from '@/pages/login';
 import RegisterPage from '@/pages/register';
 import ImpactPage from '@/pages/impact';
+import TeamPage from '@/pages/team';
+import AccountPage from '@/pages/account';
+import { overdueInfo, sortForAttention, TARGET_HOURS } from '@/lib/overdue';
 import { authHeader, checkSession, voucherLimit, loadSavedSession, logOut, type Role, type Session, type SessionUser } from '@/lib/session';
 import QRCode from 'qrcode';
 
-const queryClient = new QueryClient();
-type StatusFilter = 'All' | ReviewStatus;
+// A request refused with "Please log in." means the session ended (for example the
+// Owner removed this account's access): send the person back to the login page.
+const signedOut = (error: unknown) => {
+  const status = (error as { status?: number }).status;
+  const message = (error as { data?: { error?: string } }).data?.error;
+  if ((status === 401 || status === 403) && message === 'Please log in.') window.dispatchEvent(new Event('resolve:signed-out'));
+};
+const queryClient = new QueryClient({
+  defaultOptions: {
+    // Don't retry "not allowed" answers: they won't change, and a removed account should leave at once.
+    queries: { retry: (count, error) => ![401, 403].includes((error as { status?: number }).status ?? 0) && count < 3 },
+  },
+  queryCache: new QueryCache({ onError: signedOut }),
+  mutationCache: new MutationCache({ onError: signedOut }),
+});
+type StatusFilter = 'All' | 'Overdue' | ReviewStatus;
 
-const statuses: StatusFilter[] = ['All', 'New', 'Needs approval', 'pending_owner', 'Resolved', 'Rejected'];
+const statuses: StatusFilter[] = ['All', 'Overdue', 'New', 'Needs approval', 'pending_owner', 'Resolved', 'Rejected'];
 
 function labelStatus(status: ReviewStatus) {
   return status === 'pending_owner' ? 'Needs owner' : status;
@@ -83,8 +102,15 @@ function initials(value: string) {
 function Shell({ children, user, onLogOut }: { children: ReactNode; user: SessionUser; onLogOut: () => void }) {
   const role = user.role;
   const [location] = useLocation();
-  const activeActivity = location === '/activity';
-  const activeImpact = location === '/impact';
+  // One list drives the sidebar, the phone tabs and the breadcrumb.
+  const pages = [
+    { href: '/', label: 'Review inbox', short: 'Inbox', icon: <MessageSquareText />, show: true, id: 'inbox' },
+    { href: '/activity', label: 'Activity log', short: 'Log', icon: <FileClock />, show: role !== 'Staff', id: 'activity' },
+    { href: '/impact', label: 'Impact', short: 'Impact', icon: <Gauge />, show: role !== 'Staff', id: 'impact' },
+    { href: '/team', label: 'Team', short: 'Team', icon: <Users />, show: role === 'Owner', id: 'team' },
+    { href: '/account', label: 'My account', short: 'Account', icon: <UserRound />, show: true, id: 'account' },
+  ].filter((page) => page.show);
+  const current = pages.find((page) => page.href === location) ?? pages[0]!;
   return (
     <div className="app-shell">
       <aside className="side-rail">
@@ -93,35 +119,31 @@ function Shell({ children, user, onLogOut }: { children: ReactNode; user: Sessio
         </Link>
         <div className="rail-label">Workspace</div>
         <nav className="nav-stack" aria-label="Primary navigation">
-          <Link href="/" className={`nav-link ${!activeActivity && !activeImpact ? 'active' : ''}`} data-testid="link-inbox">
-            <MessageSquareText /><span>Review inbox</span>
-          </Link>
-          {role !== 'Staff' && <Link href="/activity" className={`nav-link ${activeActivity ? 'active' : ''}`} data-testid="link-activity">
-            <FileClock /><span>Activity log</span>
-          </Link>}
-          {role !== 'Staff' && <Link href="/impact" className={`nav-link ${activeImpact ? 'active' : ''}`} data-testid="link-impact">
-            <Gauge /><span>Impact</span>
-          </Link>}
+          {pages.map((page) => (
+            <Link key={page.id} href={page.href} className={`nav-link ${current.id === page.id ? 'active' : ''}`} data-testid={`link-${page.id}`}>
+              {page.icon}<span>{page.label}</span>
+            </Link>
+          ))}
         </nav>
         <div className="top-mobile">
-          <Link href="/" className={`nav-link ${!activeActivity && !activeImpact ? 'active' : ''}`} data-testid="mobile-link-inbox"><MessageSquareText />Inbox</Link>
-          {role !== 'Staff' && <Link href="/activity" className={`nav-link ${activeActivity ? 'active' : ''}`} data-testid="mobile-link-activity"><FileClock />Log</Link>}
-          {role !== 'Staff' && <Link href="/impact" className={`nav-link ${activeImpact ? 'active' : ''}`} data-testid="mobile-link-impact"><Gauge />Impact</Link>}
+          {pages.map((page) => (
+            <Link key={page.id} href={page.href} className={`nav-link ${current.id === page.id ? 'active' : ''}`} data-testid={`mobile-link-${page.id}`}>{page.icon}{page.short}</Link>
+          ))}
         </div>
         <div className="rail-bottom">
           <div className="rail-note">
             <strong>Built for owner-run businesses.</strong>
             <p>Every review becomes a case with an owner, a reason and a record.</p>
           </div>
-          <div className="profile-chip">
+          <Link href="/account" className="profile-chip" data-testid="link-profile">
             <span className="profile-avatar">{initials(user.name)}</span>
             <div className="profile-copy"><strong>{user.name}</strong><span>{role} · {user.tenantName}</span></div>
-          </div>
+          </Link>
         </div>
       </aside>
       <div className="workspace">
         <header className="topbar">
-          <div className="breadcrumbs"><span>Resolve</span><ChevronRight size={13} /><b>{activeActivity ? 'Activity log' : activeImpact ? 'Impact' : 'Review inbox'}</b></div>
+          <div className="breadcrumbs"><span>Resolve</span><ChevronRight size={13} /><b>{current.label}</b></div>
           <div className="top-actions">
             <div className="topbar-user">
               <span className="topbar-user-role" data-testid="text-logged-in-role">Logged in as <b>{role}</b></span>
@@ -174,7 +196,7 @@ function ReviewRow({ review, onOpen }: { review: Review; onOpen: () => void }) {
     <button className="review-row" onClick={onOpen} data-testid={`row-review-${review.id}`}>
       <span className={`rating-mark ${review.rating <= 2 ? 'low' : ''}`} data-testid={`text-rating-${review.id}`}>{review.rating}</span>
       <span className="review-info">
-        <span className="review-title"><strong>{review.reviewer}</strong><span className={`severity-badge ${review.severity}`}><CircleAlert size={11} />{review.severity} attention</span>{review.usedFallback && <span className="basic-mode-badge" data-testid={`basic-mode-${review.id}`}>Basic mode</span>}{review.ruleFired?.startsWith('R0') && <span className="duplicate-badge" data-testid={`duplicate-${review.id}`}>{review.ruleFired.includes('spam') ? 'Possible spam' : 'Possible duplicate'}</span>}</span>
+        <span className="review-title"><strong>{review.reviewer}</strong><span className={`severity-badge ${review.severity}`}><CircleAlert size={11} />{review.severity} attention</span>{review.usedFallback && <span className="basic-mode-badge" data-testid={`basic-mode-${review.id}`}>Basic mode</span>}{overdueInfo(review).overdue && <span className="overdue-badge" data-testid={`overdue-${review.id}`}>{overdueInfo(review).label}</span>}{review.ruleFired?.startsWith('R0') && <span className="duplicate-badge" data-testid={`duplicate-${review.id}`}>{review.ruleFired.includes('spam') ? 'Possible spam' : 'Possible duplicate'}</span>}</span>
         <span className="review-text">{review.text}</span>
         <span className="review-sub"><span>{review.outlet}</span><i className="dot" /><span>{review.category}</span><i className="dot" /><span>{review.language}</span></span>
       </span>
@@ -190,11 +212,13 @@ function Inbox({ role, setToast }: { role: Role; setToast: (message: string) => 
   const [outlet, setOutlet] = useState('All outlets');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const queryParams = useMemo(() => ({
-    ...(filter === 'All' ? {} : { status: filter }),
+    // "Overdue" is worked out from each case's age, so it loads all cases and filters here.
+    ...(filter === 'All' || filter === 'Overdue' ? {} : { status: filter }),
     ...(outlet === 'All outlets' ? {} : { outlet }),
   }), [filter, outlet]);
   const reviewsQuery = useListReviews(queryParams);
-  const reviews = reviewsQuery.data ?? [];
+  const loaded = reviewsQuery.data ?? [];
+  const reviews = sortForAttention(filter === 'Overdue' ? loaded.filter((review) => overdueInfo(review).overdue) : loaded);
   const simulate = useSimulateReview();
 
   const outlets = Array.from(new Set(reviews.map((review) => review.outlet))).sort();
@@ -229,7 +253,7 @@ function Inbox({ role, setToast }: { role: Role; setToast: (message: string) => 
           <div className="filter-bar" role="tablist" aria-label="Review status filters">
             {statuses.map((status) => (
               <button key={status} role="tab" aria-selected={filter === status} className={`filter-tab ${filter === status ? 'active' : ''}`} onClick={() => setFilter(status)} data-testid={`filter-status-${status.toLowerCase().replaceAll(' ', '-')}`}>
-                {status === 'All' ? status : labelStatus(status)}
+                {status === 'All' || status === 'Overdue' ? status : labelStatus(status)}
               </button>
             ))}
             <span className="filter-spacer" />
@@ -308,6 +332,7 @@ function GlanceStrip() {
   const items = [
     { label: 'Needs approval', value: count('Needs approval'), hint: 'Manager sign-off' },
     { label: 'Needs owner', value: count('pending_owner') + count('Needs owner'), hint: 'Safety, money or large vouchers' },
+    { label: 'Overdue', value: all.filter((review) => overdueInfo(review).overdue).length, hint: `Past target: ${TARGET_HOURS.urgent} h urgent, ${TARGET_HOURS.normal} h others` },
     { label: 'Resolved', value: count('Resolved'), hint: 'Reply approved and recorded' },
   ];
   return (
@@ -473,7 +498,7 @@ function ReviewDetail({ reviewId, role, onBack, setToast }: { reviewId: string; 
         <article className="detail-card" data-testid={`detail-review-${review.id}`}>
           <div className="detail-top">
             <div><div className="eyebrow">Review case</div><h2>{review.outlet}</h2><span className="case-id">CASE / {review.id}</span></div>
-            <div className="detail-badges"><span className={`status-badge ${statusClass(review.status)}`} data-testid={`detail-status-${review.id}`}>{review.status}</span><span className={`severity-badge ${review.severity}`}><CircleAlert size={12} />{review.severity}</span>{review.usedFallback && <span className="basic-mode-badge" data-testid={`basic-mode-detail-${review.id}`}>Basic mode</span>}</div>
+            <div className="detail-badges"><span className={`status-badge ${statusClass(review.status)}`} data-testid={`detail-status-${review.id}`}>{review.status}</span><span className={`severity-badge ${review.severity}`}><CircleAlert size={12} />{review.severity}</span>{review.usedFallback && <span className="basic-mode-badge" data-testid={`basic-mode-detail-${review.id}`}>Basic mode</span>}{overdueInfo(review).overdue && <span className="overdue-badge" data-testid={`overdue-detail-${review.id}`} title={`Response target: ${overdueInfo(review).targetHours} h`}>{overdueInfo(review).label} · target {overdueInfo(review).targetHours} h</span>}</div>
           </div>
           <section className="detail-body">
             <div className="section-kicker">Original review</div>
@@ -690,6 +715,8 @@ function AppRoutes({ user, onLogOut, onLoggedIn, setToast }: { user: SessionUser
           <Route path="/"><Inbox role={role} setToast={setToast} /></Route>
           <Route path="/activity">{role === 'Staff' ? <p className="inline-alert">Staff cannot view the activity log.</p> : <ActivityPage setToast={setToast} />}</Route>
           <Route path="/impact">{role === 'Staff' ? <p className="inline-alert">Staff cannot view impact figures.</p> : <ImpactPage />}</Route>
+          <Route path="/team">{role === 'Owner' ? <TeamPage /> : <p className="inline-alert">Only the Owner can manage the team.</p>}</Route>
+          <Route path="/account"><AccountPage user={user} /></Route>
           <Route component={NotFound} />
         </Switch>
       </Shell>
@@ -731,6 +758,13 @@ function AppContent() {
     setUser(null);
     navigate('/');
   };
+  useEffect(() => {
+    const handler = () => onLogOut();
+    window.addEventListener('resolve:signed-out', handler);
+    return () => window.removeEventListener('resolve:signed-out', handler);
+    // onLogOut only uses stable setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <>
       <AppRoutes key={user?.id ?? 'signed-out'} user={user} onLogOut={onLogOut} onLoggedIn={onLoggedIn} setToast={setToastMessage} />

@@ -7,7 +7,7 @@ import {
 } from "@workspace/api-zod";
 import { activityTable, db, outletsTable, reviewsTable, tenantsTable, usersTable } from "@workspace/db";
 import { profileFor } from "../lib/resolve-business-types";
-import { MANUAL_STEPS, measureFromLog, measureRouting, PHASE1, RESOLVE_STEPS, REVIEWS_PER_WEEK } from "../lib/resolve-impact";
+import { MANUAL_STEPS, measureFromLog, measureRouting, PHASE1, RESOLVE_STEPS, RESPONSE_TARGETS, REVIEWS_PER_WEEK } from "../lib/resolve-impact";
 import { authorize, PermissionDenied, type User } from "../lib/resolve-permissions";
 import { bearerToken, verifySession } from "../lib/resolve-auth";
 import { auditWriter, CaseError, changeCase, type Store } from "../lib/resolve-cases";
@@ -38,7 +38,7 @@ export function createResolveRouter(store: Store = db): IRouter {
       outletId: usersTable.outletId, managerVoucherLimitRm: tenantsTable.managerVoucherLimitRm,
       businessType: tenantsTable.businessType,
     }).from(usersTable).innerJoin(tenantsTable, eq(usersTable.tenantId, tenantsTable.id))
-      .where(eq(usersTable.id, id)) : [];
+      .where(and(eq(usersTable.id, id), eq(usersTable.active, true))) : [];
     authorize(user ?? null, "view", null);
     res.locals.user = user;
     next();
@@ -156,13 +156,14 @@ export function createResolveRouter(store: Store = db): IRouter {
     authorize(user, "activity", null);
     const cases = await store.select({
       id: reviewsTable.id, missingInfo: reviewsTable.missingInfo, ruleFired: reviewsTable.ruleFired, status: reviewsTable.status,
+      severity: reviewsTable.severity, assignedRole: reviewsTable.assignedRole, createdAt: reviewsTable.createdAt,
     }).from(reviewsTable).where(scope(user));
     const activity = await store.select({
       reviewId: activityTable.reviewId, action: activityTable.action, role: activityTable.role, details: activityTable.details,
     }).from(activityTable).innerJoin(reviewsTable, eq(activityTable.reviewId, reviewsTable.id)).where(scope(user));
     res.json({
       phase1: PHASE1,
-      assumptions: { reviewsPerWeek: REVIEWS_PER_WEEK },
+      assumptions: { reviewsPerWeek: REVIEWS_PER_WEEK, responseTargetHours: RESPONSE_TARGETS },
       steps: { manual: MANUAL_STEPS, resolve: RESOLVE_STEPS },
       measured: measureFromLog(activity, cases),
       routing: await measureRouting(),
@@ -172,7 +173,8 @@ export function createResolveRouter(store: Store = db): IRouter {
   router.get("/insights", async (_req, res): Promise<void> => {
     const user: User = res.locals.user;
     authorize(user, "insights", null);
-    const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+    // A rolling 30-day window, so the insight never empties out on the 1st of a month.
+    const monthStart = new Date(Date.now() - 30 * 24 * 3_600_000);
     const rows = await store.select({
       category: reviewsTable.category, sentiment: reviewsTable.sentiment,
       outlet: reviewsTable.outlet, createdAt: reviewsTable.createdAt,

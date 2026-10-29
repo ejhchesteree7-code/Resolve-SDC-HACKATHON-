@@ -407,8 +407,8 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
           const before = await (await fetch(base + "/reviews", { headers: { authorization: `Bearer ${body.token}` } })).json() as unknown[];
           assert.equal(before.length, 0);
           // A guest scans the salon's QR and leaves a hygiene complaint.
-          const info = await (await fetch(`${base}/public/outlets/${body.outlet.slug}`)).json() as { business: string; businessType: string };
-          assert.deepEqual(info, { outlet: "Glow & Co — SS15", business: "Glow & Co Salon", businessType: "salon" });
+          const info = await (await fetch(`${base}/public/outlets/${body.outlet.slug}`)).json() as { business: string; businessType: string; typeLabel: string };
+          assert.deepEqual(info, { outlet: "Glow & Co — SS15", business: "Glow & Co Salon", businessType: "salon", typeLabel: "Hair salon" });
           const guest = await post("/events/review-received", {
             outletId: body.outlet.slug, source: "public_page", alias: "Kavitha", rating: 1,
             text: "Scissors were not cleaned between customers.",
@@ -472,6 +472,51 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
           // Staff cannot approve a flagged case.
           const staffApprove = await request(`/cases/${flagged.id}/approve`, staff, "POST", { draftReply: "Thanks" });
           assert.equal(staffApprove.status, 403);
+        });
+        await t.test("team: owner adds, resets, removes and restores access; removal blocks at once", async () => {
+          const call = (path: string, token: string | null, method = "GET", body?: unknown) => fetch(base + path, {
+            method, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          });
+          const login = async (email: string, password: string) => call("/auth/login", null, "POST", { email, password });
+          const ownerToken = signSession(owner);
+          // Only the Owner manages the team.
+          assert.equal((await call("/team", signSession(manager))).status, 403);
+          assert.equal((await call("/team", null)).status, 401);
+          const email = `new-${randomUUID().slice(0, 8)}@team.demo`;
+          const added = await call("/team", ownerToken, "POST", { name: "New Staff", email, role: "Staff" });
+          assert.equal(added.status, 201);
+          const { id, temporaryPassword } = await added.json() as { id: string; temporaryPassword: string };
+          assert.equal((await call("/team", ownerToken, "POST", { name: "Again", email, role: "Staff" })).status, 409);
+          const team = await (await call("/team", ownerToken)).json() as { id: string; active: boolean; isYou: boolean }[];
+          assert.ok(team.some(row => row.id === id && row.active));
+          assert.ok(team.some(row => row.id === owner && row.isYou));
+          const first = await login(email, temporaryPassword);
+          assert.equal(first.status, 200);
+          const staffToken = (await first.json() as { token: string }).token;
+          assert.equal((await call("/reviews", staffToken)).status, 200);
+          // Change own password: wrong current is refused, then it works and the old one stops working.
+          assert.equal((await call("/auth/change-password", staffToken, "POST", { currentPassword: "wrong", newPassword: "brand-new-pass" })).status, 400);
+          assert.equal((await call("/auth/change-password", staffToken, "POST", { currentPassword: temporaryPassword, newPassword: "brand-new-pass" })).status, 200);
+          assert.equal((await login(email, temporaryPassword)).status, 401);
+          assert.equal((await login(email, "brand-new-pass")).status, 200);
+          // Owner resets the password: a new one-time password replaces it.
+          const reset = await (await call(`/team/${id}/reset-password`, ownerToken, "POST")).json() as { temporaryPassword: string };
+          assert.equal((await login(email, "brand-new-pass")).status, 401);
+          assert.equal((await login(email, reset.temporaryPassword)).status, 200);
+          // Remove access: the existing session stops working on the very next request, and login is refused.
+          assert.equal((await call(`/team/${id}/access`, ownerToken, "POST", { active: false })).status, 200);
+          assert.equal((await call("/reviews", staffToken)).status, 403);
+          assert.equal((await call("/auth/me", staffToken)).status, 401);
+          const blocked = await login(email, reset.temporaryPassword);
+          assert.equal(blocked.status, 401);
+          assert.match((await blocked.json() as { error: string }).error, /access was removed/);
+          // Give access back.
+          assert.equal((await call(`/team/${id}/access`, ownerToken, "POST", { active: true })).status, 200);
+          assert.equal((await login(email, reset.temporaryPassword)).status, 200);
+          // Guard rails: not yourself, not someone from another business.
+          assert.equal((await call(`/team/${owner}/access`, ownerToken, "POST", { active: false })).status, 400);
+          assert.equal((await call(`/team/${foreignTenant}-x/reset-password`, ownerToken, "POST")).status, 404);
         });
       } finally {
         await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
