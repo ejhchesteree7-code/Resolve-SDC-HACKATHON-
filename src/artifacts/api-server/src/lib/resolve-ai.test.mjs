@@ -148,3 +148,36 @@ test("a hair salon uses its own words: hygiene complaints go to the Owner", asyn
   assert.equal(getCategoryLabel("food_safety", "salon"), "Hygiene & safety");
   assert.equal(getCategoryLabel("food_safety"), "Food safety");
 });
+
+test("impact: routing on the labelled test set meets the Phase 1 target, every urgent case reaches the Owner", async () => {
+  const { measureRouting } = await import("./resolve-impact.ts");
+  const result = await measureRouting();
+  assert.ok(result.testCases >= 40);
+  assert.ok(result.routingPct >= 90, `routing ${result.routingPct}%`);
+  assert.equal(result.urgentCaught, result.urgentTotal);
+});
+
+test("impact: figures are derived from the activity log", async () => {
+  const { measureFromLog } = await import("./resolve-impact.ts");
+  const log = [
+    { reviewId: "a", action: "approved", role: "Manager", details: "Reply approved by human reviewer · handled in 20.0 s" },
+    { reviewId: "a", action: "reply_posted", role: "Manager", details: "Reply posted (simulated)" },
+    { reviewId: "b", action: "approved", role: "Owner", details: "Reply approved by human reviewer · handled in 30.0 s" },
+    { reviewId: "b", action: "reply_posted", role: "Owner", details: "Reply posted (simulated)" },
+    { reviewId: "b", action: "voucher_issued", role: "Owner", details: "Synthetic RM 10.00 voucher issued" },
+    { reviewId: "c", action: "approved", role: "Manager", details: "Reply approved by human reviewer" },
+    { reviewId: "c", action: "reply_posted", role: "Manager", details: "Reply posted (simulated)" },
+    { reviewId: "d", action: "reply_posted", role: "System", details: "Not approved by a person" },
+  ];
+  const cases = [
+    { id: "a", missingInfo: false, ruleFired: "R4 · Negative sentiment → Manager", status: "Resolved" },
+    { id: "b", missingInfo: false, ruleFired: "R2 · High severity → Owner", status: "Resolved" },
+    { id: "e", missingInfo: true, ruleFired: "R1 · Low confidence / needs_human → Manager", status: "Rejected" },
+  ];
+  const result = measureFromLog(log, cases);
+  assert.equal(result.handling.measuredApprovals, 2);
+  assert.equal(result.handling.medianSeconds, 25);
+  assert.equal(result.handling.reductionPct, 65.5);
+  assert.deepEqual(result.approvals, { actionsTaken: 5, withLoggedHumanApproval: 4, pct: 80 });
+  assert.deepEqual(result.exceptions, { urgentToOwner: 1, needsMoreDetail: 1, rejectedByHuman: 1 });
+});

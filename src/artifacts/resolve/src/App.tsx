@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Route, Switch, useLocation, useRoute } from 'wouter';
 import {
@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   Coffee,
   FileClock,
+  Gauge,
   LogOut,
   Lightbulb,
   LoaderCircle,
@@ -41,7 +42,8 @@ import NotFound from '@/pages/not-found';
 import PublicReviewsPage from '@/pages/public-reviews';
 import LoginPage from '@/pages/login';
 import RegisterPage from '@/pages/register';
-import { authHeader, checkSession, loadSavedSession, logOut, type Role, type Session, type SessionUser } from '@/lib/session';
+import ImpactPage from '@/pages/impact';
+import { authHeader, checkSession, voucherLimit, loadSavedSession, logOut, type Role, type Session, type SessionUser } from '@/lib/session';
 import QRCode from 'qrcode';
 
 const queryClient = new QueryClient();
@@ -82,6 +84,7 @@ function Shell({ children, user, onLogOut }: { children: ReactNode; user: Sessio
   const role = user.role;
   const [location] = useLocation();
   const activeActivity = location === '/activity';
+  const activeImpact = location === '/impact';
   return (
     <div className="app-shell">
       <aside className="side-rail">
@@ -90,16 +93,20 @@ function Shell({ children, user, onLogOut }: { children: ReactNode; user: Sessio
         </Link>
         <div className="rail-label">Workspace</div>
         <nav className="nav-stack" aria-label="Primary navigation">
-          <Link href="/" className={`nav-link ${!activeActivity ? 'active' : ''}`} data-testid="link-inbox">
+          <Link href="/" className={`nav-link ${!activeActivity && !activeImpact ? 'active' : ''}`} data-testid="link-inbox">
             <MessageSquareText /><span>Review inbox</span>
           </Link>
           {role !== 'Staff' && <Link href="/activity" className={`nav-link ${activeActivity ? 'active' : ''}`} data-testid="link-activity">
             <FileClock /><span>Activity log</span>
           </Link>}
+          {role !== 'Staff' && <Link href="/impact" className={`nav-link ${activeImpact ? 'active' : ''}`} data-testid="link-impact">
+            <Gauge /><span>Impact</span>
+          </Link>}
         </nav>
         <div className="top-mobile">
-          <Link href="/" className={`nav-link ${!activeActivity ? 'active' : ''}`} data-testid="mobile-link-inbox"><MessageSquareText />Inbox</Link>
+          <Link href="/" className={`nav-link ${!activeActivity && !activeImpact ? 'active' : ''}`} data-testid="mobile-link-inbox"><MessageSquareText />Inbox</Link>
           {role !== 'Staff' && <Link href="/activity" className={`nav-link ${activeActivity ? 'active' : ''}`} data-testid="mobile-link-activity"><FileClock />Log</Link>}
+          {role !== 'Staff' && <Link href="/impact" className={`nav-link ${activeImpact ? 'active' : ''}`} data-testid="mobile-link-impact"><Gauge />Impact</Link>}
         </div>
         <div className="rail-bottom">
           <div className="rail-note">
@@ -114,7 +121,7 @@ function Shell({ children, user, onLogOut }: { children: ReactNode; user: Sessio
       </aside>
       <div className="workspace">
         <header className="topbar">
-          <div className="breadcrumbs"><span>Resolve</span><ChevronRight size={13} /><b>{activeActivity ? 'Activity log' : 'Review inbox'}</b></div>
+          <div className="breadcrumbs"><span>Resolve</span><ChevronRight size={13} /><b>{activeActivity ? 'Activity log' : activeImpact ? 'Impact' : 'Review inbox'}</b></div>
           <div className="top-actions">
             <div className="topbar-user">
               <span className="topbar-user-role" data-testid="text-logged-in-role">Logged in as <b>{role}</b></span>
@@ -349,7 +356,12 @@ function ReviewDetail({ reviewId, role, onBack, setToast }: { reviewId: string; 
   const query = useGetReview(reviewId, { query: { queryKey: getGetReviewQueryKey(reviewId) } });
   const activityQuery = useListActivity({ query: { queryKey: getListActivityQueryKey(), enabled: role !== 'Staff' } });
   const updateMutation = useUpdateReview();
-  const approveMutation = useApproveReview();
+  // Handling time = from opening this case to clicking Approve. It is sent with the
+  // approval and written into the activity log, which the Impact page reads.
+  const openedAt = useRef(Date.now());
+  useEffect(() => { openedAt.current = Date.now(); }, [reviewId]);
+  const timingHeaders = useRef<Record<string, string>>({}).current;
+  const approveMutation = useApproveReview({ request: { headers: timingHeaders } });
   const rejectMutation = useRejectReview();
   const [reply, setReply] = useState('');
   const [voucher, setVoucher] = useState('');
@@ -388,8 +400,8 @@ function ReviewDetail({ reviewId, role, onBack, setToast }: { reviewId: string; 
     updateMutation.mutate({ reviewId, data: updateData() }, {
       onSuccess: (updatedReview) => {
         invalidateAfterChange();
-        setToast(updatedReview.assignedRole === 'Owner' && updatedReview.voucherAmount != null && updatedReview.voucherAmount > 20
-          ? 'Voucher above RM 20 escalated to the owner.'
+        setToast(updatedReview.assignedRole === 'Owner' && updatedReview.voucherAmount != null && updatedReview.voucherAmount > voucherLimit()
+          ? `Voucher above RM ${voucherLimit()} escalated to the owner.`
           : 'Draft saved to the case record.');
       },
       onError: () => setLocalError('The draft could not be saved. Check your connection and try again.'),
@@ -400,13 +412,13 @@ function ReviewDetail({ reviewId, role, onBack, setToast }: { reviewId: string; 
     if (!review || !canApprove(role, review)) return;
     if (!reply.trim()) { setLocalError('Write a reply before approval.'); return; }
     const proposedVoucher = voucher.trim() === '' ? null : Number(voucher);
-    if (role !== 'Owner' && proposedVoucher != null && proposedVoucher > 20) {
+    if (role !== 'Owner' && proposedVoucher != null && proposedVoucher > voucherLimit()) {
       setLocalError('');
       try {
         const updatedReview = await updateMutation.mutateAsync({ reviewId, data: updateData() });
         invalidateAfterChange();
         setToast(updatedReview.assignedRole === 'Owner'
-          ? 'Voucher above RM 20 escalated to the owner. No reply was posted.'
+          ? `Voucher above RM ${voucherLimit()} escalated to the owner. No reply was posted.`
           : 'Draft saved to the case record.');
       } catch {
         setLocalError('The voucher proposal could not be saved. Please try again.');
@@ -416,9 +428,9 @@ function ReviewDetail({ reviewId, role, onBack, setToast }: { reviewId: string; 
     if (saveFirst) {
       try {
         const updatedReview = await updateMutation.mutateAsync({ reviewId, data: updateData() });
-        if (updatedReview.assignedRole === 'Owner' && updatedReview.voucherAmount != null && updatedReview.voucherAmount > 20 && role !== 'Owner') {
+        if (updatedReview.assignedRole === 'Owner' && updatedReview.voucherAmount != null && updatedReview.voucherAmount > voucherLimit() && role !== 'Owner') {
           invalidateAfterChange();
-          setToast('Voucher above RM 20 escalated to the owner. No reply was posted.');
+          setToast(`Voucher above RM ${voucherLimit()} escalated to the owner. No reply was posted.`);
           return;
         }
       } catch {
@@ -427,6 +439,7 @@ function ReviewDetail({ reviewId, role, onBack, setToast }: { reviewId: string; 
       }
     }
     setLocalError('');
+    timingHeaders['x-handling-ms'] = String(Date.now() - openedAt.current);
     approveMutation.mutate({
       reviewId,
       data: { role, draftReply: reply.trim(), ...(role === 'Staff' ? {} : { voucherAmount: voucher.trim() === '' ? null : Number(voucher) }) },
@@ -676,6 +689,7 @@ function AppRoutes({ user, onLogOut, onLoggedIn, setToast }: { user: SessionUser
         <Switch>
           <Route path="/"><Inbox role={role} setToast={setToast} /></Route>
           <Route path="/activity">{role === 'Staff' ? <p className="inline-alert">Staff cannot view the activity log.</p> : <ActivityPage setToast={setToast} />}</Route>
+          <Route path="/impact">{role === 'Staff' ? <p className="inline-alert">Staff cannot view impact figures.</p> : <ImpactPage />}</Route>
           <Route component={NotFound} />
         </Switch>
       </Shell>
