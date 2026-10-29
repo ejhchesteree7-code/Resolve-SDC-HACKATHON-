@@ -174,7 +174,7 @@ function ReviewRow({ review, onOpen }: { review: Review; onOpen: () => void }) {
     <button className="review-row" onClick={onOpen} data-testid={`row-review-${review.id}`}>
       <span className={`rating-mark ${review.rating <= 2 ? 'low' : ''}`} data-testid={`text-rating-${review.id}`}>{review.rating}</span>
       <span className="review-info">
-        <span className="review-title"><strong>{review.reviewer}</strong><span className={`severity-badge ${review.severity}`}><CircleAlert size={11} />{review.severity} attention</span>{review.usedFallback && <span className="basic-mode-badge" data-testid={`basic-mode-${review.id}`}>Basic mode</span>}</span>
+        <span className="review-title"><strong>{review.reviewer}</strong><span className={`severity-badge ${review.severity}`}><CircleAlert size={11} />{review.severity} attention</span>{review.usedFallback && <span className="basic-mode-badge" data-testid={`basic-mode-${review.id}`}>Basic mode</span>}{review.ruleFired?.startsWith('R0') && <span className="duplicate-badge" data-testid={`duplicate-${review.id}`}>{review.ruleFired.includes('spam') ? 'Possible spam' : 'Possible duplicate'}</span>}</span>
         <span className="review-text">{review.text}</span>
         <span className="review-sub"><span>{review.outlet}</span><i className="dot" /><span>{review.category}</span><i className="dot" /><span>{review.language}</span></span>
       </span>

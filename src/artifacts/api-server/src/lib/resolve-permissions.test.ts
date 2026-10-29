@@ -449,6 +449,30 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
           assert.ok(impact.routing.routingPct >= 90);
           assert.equal((await request("/impact", staff)).status, 403);
         });
+        await t.test("duplicates: a repeated public review is kept, shown, and sent to a Manager with a reason", async () => {
+          const text = `Waited an hour for coffee ${randomUUID().slice(0, 6)}, staff rude.`;
+          const send = (alias: string, body = text) => request("/events/review-received", null, "POST", {
+            outletId: "bangsar", source: "public_page", alias, rating: 1, text: body,
+          });
+          assert.equal((await send("First guest")).status, 201);
+          assert.equal((await send("Second guest")).status, 201);
+          const rows = await tx.select().from(reviewsTable).where(eq(reviewsTable.text, text)).orderBy(asc(reviewsTable.createdAt));
+          assert.equal(rows.length, 2);
+          assert.ok(!rows[0]!.ruleFired!.startsWith("R0"));
+          const flagged = rows[1]!;
+          assert.equal(flagged.ruleFired, "R0 · Possible duplicate → Manager");
+          assert.equal(flagged.assignedRole, "Manager");
+          assert.equal(flagged.status, "Needs approval");
+          assert.equal(flagged.voucherAmount, null);
+          assert.match(flagged.reason, /^Possible duplicate: same wording/);
+          assert.deepEqual((await logs(flagged.id)).map(log => log.action), ["review_received", "ai_classified", "flagged_duplicate", "routed"]);
+          // Never hidden: both still appear on the public page.
+          const visible = await (await request("/public/outlets/bangsar/reviews", null)).json() as { text: string }[];
+          assert.equal(visible.filter(row => row.text === text).length, 2);
+          // Staff cannot approve a flagged case.
+          const staffApprove = await request(`/cases/${flagged.id}/approve`, staff, "POST", { draftReply: "Thanks" });
+          assert.equal(staffApprove.status, 403);
+        });
       } finally {
         await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
       }

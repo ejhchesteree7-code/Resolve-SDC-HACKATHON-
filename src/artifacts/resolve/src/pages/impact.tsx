@@ -10,7 +10,7 @@ type Impact = {
   measured: {
     handling: { measuredApprovals: number; medianSeconds: number | null; reductionPct: number | null; weeklyMinutesSaved: number | null };
     approvals: { actionsTaken: number; withLoggedHumanApproval: number; pct: number | null };
-    exceptions: { urgentToOwner: number; needsMoreDetail: number; rejectedByHuman: number };
+    exceptions: { urgentToOwner: number; needsMoreDetail: number; rejectedByHuman: number; possibleDuplicates: number };
     totalCases: number;
   };
   routing: { testCases: number; routingPct: number; categoryPct: number; urgentCaught: number; urgentTotal: number };
@@ -106,6 +106,7 @@ function ImpactBody({ data }: { data: Impact }) {
           <dl className="impact-list">
             <div><dt>Urgent cases sent straight to the Owner</dt><dd>{exceptions.urgentToOwner}</dd></div>
             <div><dt>Too vague, so a person asks for details</dt><dd>{exceptions.needsMoreDetail}</dd></div>
+            <div><dt>Possible duplicates or spam, checked by a person</dt><dd>{exceptions.possibleDuplicates}</dd></div>
             <div><dt>Drafts a person rejected (nothing posted)</dt><dd>{exceptions.rejectedByHuman}</dd></div>
             <div><dt>Cases in this view</dt><dd>{data.measured.totalCases}</dd></div>
           </dl>

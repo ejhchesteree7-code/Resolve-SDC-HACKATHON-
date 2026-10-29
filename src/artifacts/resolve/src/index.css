@@ -197,6 +197,7 @@ a { color: inherit; text-decoration: none; }
 .severity-badge { background:transparent;padding:0;color:hsl(var(--muted-foreground)); }
 .severity-badge.high { color:hsl(4 62% 48%); }
 .basic-mode-badge { display:inline-flex;align-items:center;border:1px solid hsl(37 70% 78%);border-radius:20px;padding:3px 7px;background:hsl(40 82% 94%);color:hsl(28 65% 35%);font:9px var(--app-font-mono);white-space:nowrap; }
+.duplicate-badge { display:inline-flex;align-items:center;border:1px solid hsl(4 50% 80%);border-radius:20px;padding:3px 7px;background:hsl(4 56% 95%);color:hsl(4 62% 36%);font:9px var(--app-font-mono);white-space:nowrap; }
 .row-role { color:hsl(var(--muted-foreground));font:10px var(--app-font-mono); }
 .row-date { color:hsl(var(--muted-foreground));font:10px var(--app-font-mono);text-align:right; }
 .row-arrow { color:hsl(var(--muted-foreground));width:15px; }
