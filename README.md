@@ -56,8 +56,8 @@ Resolve turns every review into a tracked case. It classifies the text (BM, Engl
 10. **Five SME types on one workflow:** café, hair salon, retail shop, car workshop and pet care (shop, grooming, boarding). Each type has its own words, sample reviews and reply templates; the routing rules and safety escalation are the same for all.
 11. **Duplicate and spam check (R0):** identical text within 24 hours, the same reviewer within 30 minutes, or a burst of 5 reviews in 5 minutes is flagged, sent to at least a Manager, and never offered a voucher.
 12. **Overdue alerts:** urgent cases are overdue after 2 hours and others after 24 hours. Overdue cases are badged, counted and sorted to the top.
-14. **Improvement checklist:** Resolve counts repeated complaints from the last 30 days, the AI words one concrete fix for each (rules if the AI is off), and the Owner accepts, edits or dismisses it. Once a fix is marked done, Resolve compares complaints per week for that category before and after, so the owner sees whether it worked. The counts always come from the database, never from the AI.
 13. **Impact page:** measures handling time from real approvals against our manual baseline, approval coverage from the log, and routing accuracy on a labelled test set.
+14. **Improvement checklist:** Resolve counts repeated complaints from the last 30 days, the AI words one concrete fix for each (rules if the AI is off), and the Owner accepts, edits or dismisses it. Once a fix is marked done, Resolve compares complaints per week for that category before and after, so the owner sees whether it worked. The counts always come from the database, never from the AI.
 
 ### Results So Far (Our Own Timed Test)
 We timed how long it takes to handle 10 synthetic reviews (a mix of complaints and compliments).
