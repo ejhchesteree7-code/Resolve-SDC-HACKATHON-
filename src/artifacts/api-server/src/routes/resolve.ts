@@ -5,7 +5,9 @@ import {
   ListActivityResponse, ListReviewsQueryParams, ListReviewsResponse,
   RejectReviewBody, RejectReviewResponse, SimulateReviewResponse, UpdateReviewBody, UpdateReviewResponse,
 } from "@workspace/api-zod";
-import { activityTable, db, outletsTable, reviewsTable, tenantsTable, usersTable } from "@workspace/db";
+import { activityTable, db, improvementsTable, outletsTable, reviewsTable, tenantsTable, usersTable } from "@workspace/db";
+import { randomUUID } from "node:crypto";
+import { evidenceFor, findProblems, measureFix, suggestFixes, BEFORE_DAYS, WINDOW_DAYS } from "../lib/resolve-improvements";
 import { profileFor } from "../lib/resolve-business-types";
 import { MANUAL_STEPS, measureFromLog, measureRouting, PHASE1, RESOLVE_STEPS, RESPONSE_TARGETS, REVIEWS_PER_WEEK } from "../lib/resolve-impact";
 import { authorize, PermissionDenied, type User } from "../lib/resolve-permissions";
@@ -27,7 +29,7 @@ const samples = [
   { reviewer: "Aina Rahman", outlet: "Brew & Kin — Bangsar", rating: 2, text: "Tunggu 40 minit, staff rude gila." },
 ];
 
-export function createResolveRouter(store: Store = db): IRouter {
+export function createResolveRouter(store: Store = db, options: { aiDisabled?: boolean } = {}): IRouter {
   const router: IRouter = Router();
   // Identity comes only from a server-signed login session; no role, tenant or
   // outlet from the request participates in authorization.
@@ -182,6 +184,84 @@ export function createResolveRouter(store: Store = db): IRouter {
     const insight = computeInsight(rows, user.role === "Owner" ? "All outlets" : user.outletId);
     // A Manager only ever sees their own outlet, so always report it as that outlet.
     res.json(GetInsightsResponse.parse(user.role === "Owner" ? insight : { ...insight, outlet: user.outletId }));
+  });
+
+  // Improvement Checklist. Owners and Managers can see it; only the Owner changes it.
+  const improvementsFor = async (user: User) => {
+    if (user.role === "Staff") throw new PermissionDenied("Only a Manager or Owner can view the improvement checklist.");
+    const items = await store.select().from(improvementsTable)
+      .where(eq(improvementsTable.tenantId, user.tenantId)).orderBy(desc(improvementsTable.createdAt));
+    const done = items.filter(item => item.status === "done" && item.doneAt);
+    const earliest = done.length ? new Date(Math.min(...done.map(item => item.doneAt!.getTime())) - BEFORE_DAYS * 86_400_000) : null;
+    const complaints = earliest ? await store.select({ category: reviewsTable.category, outlet: reviewsTable.outletId, createdAt: reviewsTable.createdAt })
+      .from(reviewsTable).where(and(eq(reviewsTable.tenantId, user.tenantId), eq(reviewsTable.sentiment, "negative"),
+        gte(reviewsTable.createdAt, earliest))) : [];
+    return items.filter(item => item.status !== "dismissed").map(item => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+      doneAt: item.doneAt?.toISOString() ?? null,
+      result: item.status === "done" && item.doneAt
+        ? measureFix(complaints.filter(row => row.category === item.category && (!item.outlet || row.outlet === item.outlet))
+          .map(row => row.createdAt), item.doneAt)
+        : null,
+    }));
+  };
+  const ownerOnly = (user: User) => {
+    if (user.role !== "Owner") throw new PermissionDenied("Only the Owner can change the improvement checklist.");
+  };
+
+  router.get("/improvements", async (_req, res): Promise<void> => {
+    res.json(await improvementsFor(res.locals.user));
+  });
+
+  router.post("/improvements/generate", async (_req, res): Promise<void> => {
+    const user: User = res.locals.user;
+    ownerOnly(user);
+    const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000);
+    const rows = await store.select({
+      category: reviewsTable.category, outlet: reviewsTable.outletId, createdAt: reviewsTable.createdAt, text: reviewsTable.text,
+    }).from(reviewsTable).where(and(eq(reviewsTable.tenantId, user.tenantId), eq(reviewsTable.sentiment, "negative"),
+      gte(reviewsTable.createdAt, since)));
+    // Skip problems the owner is already working on or fixed in the last 30 days; refresh old suggestions.
+    const existing = await store.select().from(improvementsTable).where(eq(improvementsTable.tenantId, user.tenantId));
+    const busy = new Set(existing.filter(item => (item.status === "accepted" || item.status === "done")
+      && (item.doneAt ?? item.createdAt).getTime() >= since.getTime()).map(item => item.category));
+    const problems = findProblems(rows).filter(problem => !busy.has(problem.category));
+    const suggestions = await suggestFixes(problems, user.businessType ?? "cafe", { aiDisabled: options.aiDisabled });
+    await store.transaction(async tx => {
+      await tx.delete(improvementsTable).where(and(eq(improvementsTable.tenantId, user.tenantId), eq(improvementsTable.status, "suggested")));
+      if (!suggestions.length) return;
+      await tx.insert(improvementsTable).values(suggestions.map(suggestion => {
+        const problem = problems.find(p => p.category === suggestion.category)!;
+        return {
+          id: randomUUID(), tenantId: user.tenantId, category: suggestion.category, outlet: problem.outlet,
+          title: suggestion.title, evidence: evidenceFor(problem), source: suggestion.source, status: "suggested",
+        };
+      }));
+    });
+    res.status(201).json(await improvementsFor(user));
+  });
+
+  router.post("/improvements/:id", async (req, res): Promise<void> => {
+    const user: User = res.locals.user;
+    ownerOnly(user);
+    const { action, title, note } = (req.body ?? {}) as { action?: string; title?: unknown; note?: unknown };
+    const [item] = await store.select().from(improvementsTable)
+      .where(and(eq(improvementsTable.id, String(req.params.id)), eq(improvementsTable.tenantId, user.tenantId)));
+    if (!item) { res.status(404).json({ error: "Checklist item not found." }); return; }
+    const cleanTitle = typeof title === "string" ? title.trim().slice(0, 220) : "";
+    const cleanNote = typeof note === "string" ? note.trim().slice(0, 300) || null : null;
+    const changes: Partial<typeof improvementsTable.$inferInsert> =
+      action === "accept" ? { status: "accepted", decidedBy: user.id, ...(cleanTitle ? { title: cleanTitle } : {}) }
+      : action === "dismiss" ? { status: "dismissed", decidedBy: user.id }
+      : action === "edit" && cleanTitle ? { title: cleanTitle }
+      : action === "done" && item.status === "accepted" ? { status: "done", doneAt: new Date(), note: cleanNote }
+      : {};
+    if (!Object.keys(changes).length) {
+      res.status(400).json({ error: action === "done" ? "Accept the item before marking it done." : "Unknown action." }); return;
+    }
+    await store.transaction(tx => tx.update(improvementsTable).set(changes).where(eq(improvementsTable.id, item.id)));
+    res.json(await improvementsFor(user));
   });
 
   router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {

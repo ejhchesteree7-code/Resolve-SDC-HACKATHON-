@@ -14,6 +14,7 @@ import {
   Gauge,
   Users,
   UserRound,
+  ListChecks,
   LogOut,
   Lightbulb,
   LoaderCircle,
@@ -46,6 +47,7 @@ import LoginPage from '@/pages/login';
 import RegisterPage from '@/pages/register';
 import ImpactPage from '@/pages/impact';
 import TeamPage from '@/pages/team';
+import ImprovePage from '@/pages/improve';
 import AccountPage from '@/pages/account';
 import { overdueInfo, sortForAttention, TARGET_HOURS } from '@/lib/overdue';
 import { authHeader, checkSession, voucherLimit, loadSavedSession, logOut, type Role, type Session, type SessionUser } from '@/lib/session';
@@ -106,6 +108,7 @@ function Shell({ children, user, onLogOut }: { children: ReactNode; user: Sessio
   const pages = [
     { href: '/', label: 'Review inbox', short: 'Inbox', icon: <MessageSquareText />, show: true, id: 'inbox' },
     { href: '/activity', label: 'Activity log', short: 'Log', icon: <FileClock />, show: role !== 'Staff', id: 'activity' },
+    { href: '/improve', label: 'Improve', short: 'Improve', icon: <ListChecks />, show: role !== 'Staff', id: 'improve' },
     { href: '/impact', label: 'Impact', short: 'Impact', icon: <Gauge />, show: role !== 'Staff', id: 'impact' },
     { href: '/team', label: 'Team', short: 'Team', icon: <Users />, show: role === 'Owner', id: 'team' },
     { href: '/account', label: 'My account', short: 'Account', icon: <UserRound />, show: true, id: 'account' },
@@ -715,6 +718,7 @@ function AppRoutes({ user, onLogOut, onLoggedIn, setToast }: { user: SessionUser
           <Route path="/"><Inbox role={role} setToast={setToast} /></Route>
           <Route path="/activity">{role === 'Staff' ? <p className="inline-alert">Staff cannot view the activity log.</p> : <ActivityPage setToast={setToast} />}</Route>
           <Route path="/impact">{role === 'Staff' ? <p className="inline-alert">Staff cannot view impact figures.</p> : <ImpactPage />}</Route>
+          <Route path="/improve">{role === 'Staff' ? <p className="inline-alert">Only a Manager or Owner can view the improvement checklist.</p> : <ImprovePage role={role} />}</Route>
           <Route path="/team">{role === 'Owner' ? <TeamPage /> : <p className="inline-alert">Only the Owner can manage the team.</p>}</Route>
           <Route path="/account"><AccountPage user={user} /></Route>
           <Route component={NotFound} />

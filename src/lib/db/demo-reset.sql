@@ -8,13 +8,14 @@
 --   1. Removes every Brew & Kin case and its log entries, including test submissions.
 --      The activity log is append-only, so the lock is switched off for this one
 --      maintenance step and switched straight back on. The app itself can never do this.
---   2. Puts the 52 seeded synthetic reviews back, moved to today's dates:
---      Mont Kiara's reviews end about 40 minutes ago; Bangsar's move by whole weeks so
---      the Friday-night pattern still lands on Fridays.
+--   2. Puts back a focused set of 20 seeded synthetic reviews, moved to today's dates:
+--      Mont Kiara's reviews end about 40 minutes ago; Bangsar's move by whole weeks (ending
+--      1–2 weeks ago) so the Friday-night pattern still lands on Fridays.
 --   3. Older open cases are marked as already handled (approved by the right role,
 --      labelled "seeded demo history" in the log). What stays open is the last day's
 --      reviews plus two urgent Owner cases that show the overdue alert.
---   4. Resets the three demo logins (password: resolve-demo), gives them access back,
+--   4. Adds one finished improvement (seeded demo history) to show before/after.
+--   5. Resets the three demo logins (password: resolve-demo), gives them access back,
 --      and removes extra people added to Brew & Kin while testing the Team page.
 --   No handling times are seeded, so the Impact page's timing only shows real approvals.
 
@@ -226,7 +227,7 @@ CREATE TEMP TABLE seed_shift ON COMMIT DROP AS
 SELECT r.id,
   CASE WHEN r.id LIKE 'resolve-demo-mont-kiara-demo-%'
     THEN now() - interval '40 minutes' - (SELECT max(created_at) FROM seed_reviews WHERE id LIKE 'resolve-demo-mont-kiara-demo-%')
-    ELSE floor(extract(epoch FROM now() - (SELECT max(created_at) FROM seed_reviews WHERE id NOT LIKE 'resolve-demo-mont-kiara-demo-%')) / 604800) * interval '7 days'
+    ELSE (floor(extract(epoch FROM now() - (SELECT max(created_at) FROM seed_reviews WHERE id NOT LIKE 'resolve-demo-mont-kiara-demo-%')) / 604800) - 1) * interval '7 days'
   END AS shift
 FROM seed_reviews r;
 
@@ -234,6 +235,26 @@ UPDATE seed_reviews r SET created_at = r.created_at + s.shift FROM seed_shift s 
 UPDATE seed_activity a SET created_at = a.created_at + s.shift FROM seed_shift s WHERE s.id = a.review_id;
 -- Log entries made later in the original run must not end up in the future.
 UPDATE seed_activity SET created_at = now() - interval '5 minutes' WHERE created_at > now();
+
+-- One newer Bangsar review, after the seeded Friday fix (see step 5).
+INSERT INTO seed_reviews (id, reviewer, outlet, rating, language, text, sentiment, category, severity, reason, confidence,
+  draft_reply, status, assigned_role, created_at, rule_fired, tenant_id, outlet_id, source)
+VALUES ('resolve-demo-bangsar-after-fix', 'Farah Iskandar', 'Brew & Kin — Bangsar', 3, 'English',
+  'Friday night was still a bit slow, about 15 minutes, but better than last month.', 'negative', 'Slow service', 'medium',
+  'Pre-classified synthetic demo review; no live AI call.', 0.96,
+  'Thank you for coming back and for the honest update. We added staff on Friday evenings and will keep working on the wait.',
+  'Needs approval', 'Manager', now() - interval '6 days 3 hours', 'R4 · Negative sentiment → Manager', 'resolve-demo', 'Brew & Kin — Bangsar', 'simulated');
+INSERT INTO seed_activity (id, review_id, actor, role, action, details, created_at, sequence) VALUES
+  ('seed-received-after-fix', 'resolve-demo-bangsar-after-fix', 'Resolve', 'System', 'review_received', 'Review received from Farah Iskandar', now() - interval '6 days 3 hours', 0),
+  ('seed-routed-after-fix', 'resolve-demo-bangsar-after-fix', 'Resolve', 'System', 'rule_routed', 'R4 · Negative sentiment → Manager', now() - interval '6 days 3 hours' + interval '1 second', 0);
+
+-- Keep a focused demo set of 20 reviews: Bangsar's Friday slow-service pattern and the
+-- review after its fix, two urgent Owner cases, four fresh ones, and repeat complaints
+-- (order accuracy, food quality) for the improvement checklist.
+CREATE TEMP TABLE seed_keep (id text) ON COMMIT DROP;
+INSERT INTO seed_keep VALUES ('review-001'), ('review-003'), ('review-004'), ('review-005'), ('review-006'), ('review-024'), ('resolve-demo-bangsar-after-fix'), ('review-016'), ('review-007'), ('resolve-demo-mont-kiara-demo-001'), ('resolve-demo-mont-kiara-demo-002'), ('resolve-demo-mont-kiara-demo-003'), ('resolve-demo-mont-kiara-demo-004'), ('resolve-demo-mont-kiara-demo-010'), ('resolve-demo-mont-kiara-demo-016'), ('resolve-demo-mont-kiara-demo-007'), ('review-019'), ('resolve-demo-mont-kiara-demo-014'), ('resolve-demo-mont-kiara-demo-012'), ('resolve-demo-mont-kiara-demo-019');
+DELETE FROM seed_activity WHERE review_id NOT IN (SELECT id FROM seed_keep);
+DELETE FROM seed_reviews WHERE id NOT IN (SELECT id FROM seed_keep);
 
 -- 3. Older open cases were handled by the right role (seeded demo history).
 CREATE TEMP TABLE seed_handled ON COMMIT DROP AS
@@ -258,6 +279,19 @@ INSERT INTO resolve_reviews SELECT * FROM seed_reviews;
 INSERT INTO resolve_activity (id, review_id, actor, role, action, details, created_at, sequence)
 SELECT id, review_id, actor, role, action, details, created_at, nextval('resolve_activity_sequence_seq')
 FROM (SELECT * FROM seed_activity ORDER BY created_at, sequence) ordered;
+
+-- 5. Improvement checklist (needs migration 0007): one fix marked done earlier, as
+--    seeded demo history, so the before/after comparison is visible straight away.
+DELETE FROM improvements WHERE tenant_id = 'resolve-demo';
+INSERT INTO improvements (id, tenant_id, category, outlet, title, evidence, source, status, created_at, decided_by, done_at, note)
+SELECT 'seed-improvement-slow-service', 'resolve-demo', 'Slow service', 'Brew & Kin — Bangsar',
+  'Add one staff member on Friday evenings at Bangsar',
+  count(*) || ' slow service complaints in 30 days, mostly on Fridays, mostly at Brew & Kin — Bangsar',
+  'rules', 'done', max(created_at) + interval '2 hours', 'demo-owner', max(created_at) + interval '1 day',
+  'Seeded demo history: one extra barista rostered on Friday evenings from this date'
+FROM resolve_reviews
+WHERE tenant_id = 'resolve-demo' AND outlet_id = 'Brew & Kin — Bangsar' AND category = 'Slow service' AND sentiment = 'negative'
+  AND id <> 'resolve-demo-bangsar-after-fix';
 
 -- 4. Demo logins.
 DELETE FROM users WHERE tenant_id = 'resolve-demo' AND id NOT IN ('demo-owner', 'demo-manager', 'demo-staff');

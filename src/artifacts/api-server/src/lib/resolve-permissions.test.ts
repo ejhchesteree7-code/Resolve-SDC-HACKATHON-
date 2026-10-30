@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import express from "express";
 import { asc, eq, sql } from "drizzle-orm";
-import { activityTable, db, pool, reviewsTable, tenantsTable, usersTable } from "@workspace/db";
+import { activityTable, db, improvementsTable, pool, reviewsTable, tenantsTable, usersTable } from "@workspace/db";
 import { createResolveRouter } from "../routes/resolve";
 import { createPublicRouter } from "../routes/resolve-public";
 import { createAuthRouter } from "../routes/resolve-auth";
@@ -64,7 +64,7 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
       app.use(express.json());
       app.use("/api", createPublicRouter(tx, { aiDisabled: true }));
       app.use("/api", createAuthRouter(tx));
-      app.use("/api", createResolveRouter(tx));
+      app.use("/api", createResolveRouter(tx, { aiDisabled: true }));
       // Keep expected database-failure tests quiet; never log request credentials.
       app.use((_error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
         res.status(500).json({ error: "Transaction failed" });
@@ -517,6 +517,34 @@ test("permissions and audit integration (real HTTP and PostgreSQL, rolled back)"
           // Guard rails: not yourself, not someone from another business.
           assert.equal((await call(`/team/${owner}/access`, ownerToken, "POST", { active: false })).status, 400);
           assert.equal((await call(`/team/${foreignTenant}-x/reset-password`, ownerToken, "POST")).status, 404);
+        });
+        await t.test("improvements: owner generates a checklist from real complaints, decides, and sees before/after", async () => {
+          for (let i = 0; i < 3; i++) await fixture({ category: "Value", createdAt: new Date(Date.now() - (i + 1) * 86_400_000) });
+          assert.equal((await request("/improvements", staff)).status, 403);
+          assert.equal((await request("/improvements/generate", manager, "POST")).status, 403);
+          const generated = await request("/improvements/generate", owner, "POST");
+          assert.equal(generated.status, 201);
+          const items = await generated.json() as { id: string; category: string; evidence: string; source: string; status: string }[];
+          const value = items.find(item => item.category === "Value")!;
+          assert.match(value.evidence, /^\d+ value complaints in 30 days/);
+          assert.equal(value.source, "rules");
+          assert.equal((await request("/improvements", manager)).status, 200);
+          assert.equal((await request(`/improvements/${value.id}`, owner, "POST", { action: "done" })).status, 400);
+          assert.equal((await request(`/improvements/${value.id}`, manager, "POST", { action: "accept" })).status, 403);
+          assert.equal((await request(`/improvements/${value.id}`, owner, "POST", { action: "accept", title: "Show prices clearly at the counter" })).status, 200);
+          // Pretend it was done three weeks ago so there is enough data to compare.
+          await request(`/improvements/${value.id}`, owner, "POST", { action: "done", note: "New price board" });
+          await tx.update(improvementsTable).set({ doneAt: new Date(Date.now() - 21 * 86_400_000) }).where(eq(improvementsTable.id, value.id));
+          const after = await (await request("/improvements", owner)).json() as { id: string; title: string; status: string; result: { afterCount: number; enoughData: boolean } | null }[];
+          const done = after.find(item => item.id === value.id)!;
+          assert.equal(done.title, "Show prices clearly at the counter");
+          assert.equal(done.status, "done");
+          assert.ok(done.result?.enoughData);
+          assert.ok(done.result!.afterCount >= 3);
+          // A done problem is not suggested again; another tenant cannot touch it.
+          const again = await (await request("/improvements/generate", owner, "POST")).json() as { category: string; status: string }[];
+          assert.ok(!again.some(item => item.category === "Value" && item.status === "suggested"));
+          assert.equal((await request(`/improvements/${randomUUID()}`, owner, "POST", { action: "accept" })).status, 404);
         });
       } finally {
         await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
