@@ -268,3 +268,11 @@ test("before/after compares complaints per week and waits a week before judging"
   assert.equal(result.changePct, -67);
   assert.equal(measureFix(dates, ago(3), now).changePct, null); // too early to tell
 });
+
+test("reasoning models get max_completion_tokens and no temperature; chat models keep both", async () => {
+  const { samplingFor } = await import("./resolve-ai.ts");
+  assert.deepEqual(samplingFor("gpt-5.4-mini", 300, 0), { max_completion_tokens: 1200 });
+  assert.deepEqual(samplingFor("gpt-6-sol", 300, 0), { max_completion_tokens: 1200 });
+  assert.deepEqual(samplingFor("deepseek-v4-flash", 300, 0), { max_tokens: 300, temperature: 0 });
+  assert.deepEqual(samplingFor("gpt-4.1-nano", 300, 0), { max_tokens: 300, temperature: 0 });
+});
