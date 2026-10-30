@@ -8,7 +8,7 @@
 --   1. Removes every Brew & Kin case and its log entries, including test submissions.
 --      The activity log is append-only, so the lock is switched off for this one
 --      maintenance step and switched straight back on. The app itself can never do this.
---   2. Puts the 52 seeded synthetic reviews back, moved to today's dates:
+--   2. Puts back a focused set of 20 seeded synthetic reviews, moved to today's dates:
 --      Mont Kiara's reviews end about 40 minutes ago; Bangsar's move by whole weeks (ending
 --      1–2 weeks ago) so the Friday-night pattern still lands on Fridays.
 --   3. Older open cases are marked as already handled (approved by the right role,
@@ -247,6 +247,14 @@ VALUES ('resolve-demo-bangsar-after-fix', 'Farah Iskandar', 'Brew & Kin — Bang
 INSERT INTO seed_activity (id, review_id, actor, role, action, details, created_at, sequence) VALUES
   ('seed-received-after-fix', 'resolve-demo-bangsar-after-fix', 'Resolve', 'System', 'review_received', 'Review received from Farah Iskandar', now() - interval '6 days 3 hours', 0),
   ('seed-routed-after-fix', 'resolve-demo-bangsar-after-fix', 'Resolve', 'System', 'rule_routed', 'R4 · Negative sentiment → Manager', now() - interval '6 days 3 hours' + interval '1 second', 0);
+
+-- Keep a focused demo set of 20 reviews: Bangsar's Friday slow-service pattern and the
+-- review after its fix, two urgent Owner cases, four fresh ones, and repeat complaints
+-- (order accuracy, food quality) for the improvement checklist.
+CREATE TEMP TABLE seed_keep (id text) ON COMMIT DROP;
+INSERT INTO seed_keep VALUES ('review-001'), ('review-003'), ('review-004'), ('review-005'), ('review-006'), ('review-024'), ('resolve-demo-bangsar-after-fix'), ('review-016'), ('review-007'), ('resolve-demo-mont-kiara-demo-001'), ('resolve-demo-mont-kiara-demo-002'), ('resolve-demo-mont-kiara-demo-003'), ('resolve-demo-mont-kiara-demo-004'), ('resolve-demo-mont-kiara-demo-010'), ('resolve-demo-mont-kiara-demo-016'), ('resolve-demo-mont-kiara-demo-007'), ('review-019'), ('resolve-demo-mont-kiara-demo-014'), ('resolve-demo-mont-kiara-demo-012'), ('resolve-demo-mont-kiara-demo-019');
+DELETE FROM seed_activity WHERE review_id NOT IN (SELECT id FROM seed_keep);
+DELETE FROM seed_reviews WHERE id NOT IN (SELECT id FROM seed_keep);
 
 -- 3. Older open cases were handled by the right role (seeded demo history).
 CREATE TEMP TABLE seed_handled ON COMMIT DROP AS
