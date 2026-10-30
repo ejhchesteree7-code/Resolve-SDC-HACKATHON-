@@ -225,3 +225,46 @@ test("new industries: each sends its own safety issue to the Owner with its own 
   // Overcharging at a workshop is a money dispute, so it also goes to the Owner.
   await check("workshop", "Overcharged me RM200 more than the quote.", "Billing");
 });
+
+// Improvement Checklist
+import { findProblems, evidenceFor, measureFix, parseFixes, suggestFixes } from "./resolve-improvements.ts";
+
+const now = new Date("2026-10-30T12:00:00Z");
+const ago = (days) => new Date(now.getTime() - days * 86_400_000);
+const complaint = (category, days, outlet = "Bangsar", text = "slow") => ({ category, outlet, createdAt: ago(days), text });
+
+test("checklist evidence comes from real counts: repeats only, newest 30 days, peak day and outlet", () => {
+  // 2026-10-23, 2026-10-16, 2026-10-09 are Fridays.
+  const rows = [complaint("Slow service", 7), complaint("Slow service", 14), complaint("Slow service", 21), complaint("Slow service", 3, "Mont Kiara"),
+    complaint("Food quality", 2), complaint("Food quality", 40), complaint("Praise", 1), complaint("Praise", 2)];
+  const problems = findProblems(rows, now);
+  assert.deepEqual(problems.map(p => p.category), ["Slow service"]); // one recent food complaint and praise don't count
+  assert.equal(problems[0].count, 4);
+  assert.equal(problems[0].peakDay, "Fridays");
+  assert.equal(problems[0].outlet, "Bangsar");
+  assert.equal(evidenceFor(problems[0]), "4 slow service complaints in 30 days, 3 on Fridays, mostly at Bangsar");
+});
+
+test("AI fixes are kept only for real categories; anything missing or broken falls back to rules", async () => {
+  const problems = [{ category: "Slow service", count: 4, outlet: null, peakDay: null, peakCount: 0, examples: [] },
+    { category: "Staff attitude", count: 2, outlet: null, peakDay: null, peakCount: 0, examples: [] }];
+  const parsed = parseFixes(JSON.stringify({ fixes: [{ category: "Slow service", fix: "Add one barista on Friday evenings." }, { category: "Made up", fix: "Ignore me please." }] }), problems);
+  assert.deepEqual(parsed.map(s => s.source), ["ai", "rules"]);
+  assert.equal(parsed[0].title, "Add one barista on Friday evenings.");
+  const broken = await suggestFixes(problems, "cafe", { requestAi: async () => "not json" });
+  assert.ok(broken.every(s => s.source === "rules" && s.title.length > 10));
+  const off = await suggestFixes(problems, "cafe", { aiDisabled: true });
+  assert.ok(off.every(s => s.source === "rules"));
+});
+
+test("before/after compares complaints per week and waits a week before judging", () => {
+  const doneAt = ago(14);
+  const dates = [ago(40), ago(30), ago(25), ago(20), ago(18), ago(16), ago(5)]; // 6 in the 28 days before, 1 after
+  const result = measureFix(dates, doneAt, now);
+  assert.equal(result.beforeCount, 6);
+  assert.equal(result.afterCount, 1);
+  assert.equal(result.beforePerWeek, 1.5);
+  assert.equal(result.afterPerWeek, 0.5);
+  assert.equal(result.changePct, -67);
+  assert.equal(measureFix(dates, ago(3), now).changePct, null); // too early to tell
+});

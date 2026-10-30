@@ -75,3 +75,20 @@ export const activityTable = pgTable("resolve_activity", {
 });
 
 export type ReviewRecord = typeof reviewsTable.$inferSelect;
+
+// Improvement checklist: fixes suggested from repeated complaints. The owner accepts,
+// edits, dismisses or marks each one done; Resolve then compares complaints before/after.
+export const improvementsTable = pgTable("improvements", {
+  id: text("id").primaryKey(),
+  tenantId: text("tenant_id").notNull().references(() => tenantsTable.id),
+  category: text("category").notNull(),
+  outlet: text("outlet"),
+  title: text("title").notNull(),
+  evidence: text("evidence").notNull(),
+  source: text("source").notNull(), // "ai" | "rules"
+  status: text("status").notNull().default("suggested"), // suggested | accepted | done | dismissed
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedBy: text("decided_by"),
+  doneAt: timestamp("done_at", { withTimezone: true }),
+  note: text("note"),
+});

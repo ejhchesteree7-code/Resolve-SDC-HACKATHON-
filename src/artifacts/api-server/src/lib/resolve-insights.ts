@@ -17,7 +17,7 @@ export type Insight = {
 const weekdays = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
 // Plain-language next steps for a café team. Keyed by the case category label.
-const actions: Record<string, string> = {
+export const suggestedActions: Record<string, string> = {
   "Slow service": "Check staffing and kitchen prep for the busiest shifts, and tell waiting guests how long it will take.",
   "Order accuracy": "Read each order back to the guest and add a quick check at the pass before food or drinks go out.",
   "Food quality": "Share these cases with the kitchen and check temperature and freshness at the pass.",
@@ -47,7 +47,7 @@ const actions: Record<string, string> = {
   "Pet safety": "Owner to contact the pet owners today and review handling and supervision.",
   "Care quality": "Review cleaning and feeding checklists for every stay and groom.",
 };
-const fallbackAction = "Review these cases together and agree one fix with the team.";
+export const fallbackAction = "Review these cases together and agree one fix with the team.";
 
 // Categories that do not describe a repeatable operational problem.
 const ignored = new Set(["Praise", "Unclear", "Other"]);
@@ -95,6 +95,6 @@ export function computeInsight(rows: InsightRow[], fallbackOutlet: string): Insi
       : `${best.length} ${best.length === 1 ? "complaint" : "complaints"} in 30 days`,
     flagged: best.length >= 3,
     outlet: best[0]!.outlet,
-    action: actions[category] ?? fallbackAction,
+    action: suggestedActions[category] ?? fallbackAction,
   };
 }
