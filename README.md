@@ -28,6 +28,8 @@
 | Interface assumptions (Orbyte, Google, WhatsApp) | [docs/interface-assumptions.md](docs/interface-assumptions.md) |
 | **Grand Final Report (PDF)** | [submission/1. SDC Hackathon_ Submission Template (Finalists) FINALIST.pdf](submission/1.%20SDC%20Hackathon_%20Submission%20Template%20%28Finalists%29%20FINALIST.pdf) |
 | **Grand Final Technical Tools Declaration (PDF)** | [submission/2. SDC Hackathon_ Tech. Tools Declaration Template  FINALIST (Finalist).pdf](submission/2.%20SDC%20Hackathon_%20Tech.%20Tools%20Declaration%20Template%20%20FINALIST%20%28Finalist%29.pdf) |
+| **Grand Final Pitch Deck (PDF)** | [submission/SDC2026_sticksandstones_PitchDeck_Final.pdf](submission/SDC2026_sticksandstones_PitchDeck_Final.pdf) |
+| **Grand Final Pitch Deck (PPTX)** | [submission/SDC2026_sticksandstones_PitchDeck_Final.pptx](submission/SDC2026_sticksandstones_PitchDeck_Final.pptx) |
 | Preliminary Project Proposal (PDF) | [submission/SDC2026_sticksandstones_Preliminary.pdf](submission/SDC2026_sticksandstones_Preliminary.pdf) |
 | Technical Tools Declaration, Round 1 (PDF) | [submission/SDC2026_sticksandstones_TechDeclaration.pdf](submission/SDC2026_sticksandstones_TechDeclaration.pdf) |
 | Slide Deck, Round 1 | [submission/SDC_sticksandstones_slidedeck.pdf](submission/SDC_sticksandstones_slidedeck.pdf) |
