@@ -104,8 +104,49 @@ The live site sets security headers (CSP, HSTS and others) and scored 125/100 (A
 ## Orbyte Fit and Reuse
 Tenant settings (business type, outlets, team, voucher limit) are data, so the same workflow already runs for a café, a hair salon, a retail shop, a car workshop and a pet care business. Adding another SME type is one new profile of words and templates, not new code paths. Reviews enter through one event (`POST /api/events/review-received`) and leave through one (`reply_posted`) after human approval, so any channel (NFC, QR, Google Business Profile, WhatsApp) can plug in. Details: [docs/interface-assumptions.md](docs/interface-assumptions.md).
 
-## Privacy (PDPA)
-Only a first name or alias, the rating and the review text are collected. Access is limited by role, every action is logged, no customer data is used for model training, and no reply is sent without human approval. Vouchers are service recovery and are never tied to posting, editing or removing a public review.
+## Privacy and Data Protection (PDPA 2010)
+How Resolve would handle personal data in a real deployment under Malaysia's Personal Data Protection Act 2010 (PDPA). **The prototype uses synthetic data only**; no real customer data has been collected.
+
+### What personal data Resolve handles
+| Person | Data | Why |
+| --- | --- | --- |
+| **Guest** (customer) | First name or alias, 1–5 rating, review text | To reply to the review and fix the problem. No phone number, email, IC or location is asked for. |
+| **Team member** | Name, work email, role, outlet, hashed password | To log in and record who approved what. |
+
+### The seven PDPA principles
+| PDPA principle | How Resolve handles it in a real deployment |
+| --- | --- |
+| **1. General (lawful purpose)** | Data is used only to respond to the review and improve service at that business. It is never sold, used for marketing lists, or used to train AI models. |
+| **2. Notice and Choice (consent)** | Before submitting, the review page tells the guest in plain English and Bahasa Melayu who the business is, that their name and review will be shown publicly with the business's reply, and what it is used for. Submitting is the guest's opt-in; they can use an alias. A private WhatsApp follow-up is only sent if the guest opts in. *(The prototype's review page does not yet show this notice; it is part of the rollout.)* |
+| **3. Disclosure** | Only the outlet name, rating and review text are sent to the AI API (no names, no team data). Data is not shared with any other third party. Approved replies go only to the channel the review came from. |
+| **4. Security** | Supabase Postgres with row-level security on and no public access; only the Resolve server connects. Passwords stored as salted scrypt hashes. Signed login sessions that expire after 12 hours. Every permission check runs on the server. API keys and database credentials live in Vercel environment variables, never in the code. All traffic over HTTPS. |
+| **5. Retention** | Reviews and cases are kept for **12 months**, then deleted or anonymised (guest name removed, text kept for trend counts). Activity log entries are kept for the same period for accountability. A removed team member's login is disabled at once; their past actions stay in the log. |
+| **6. Data Integrity** | Guests can submit a new review to correct one. The activity log is append-only, so the record of what happened cannot be altered. |
+| **7. Access** | A guest can ask the business to see or delete their review. The Owner handles the request and it is recorded in the log. |
+
+### Who sees what
+| Data | Guest (public page) | Staff | Manager | Owner |
+| --- | --- | --- | --- | --- |
+| Reviews and approved replies | ✅ | ✅ own outlet | ✅ own outlet | ✅ all outlets |
+| Draft replies, routing reason | ❌ | ✅ own outlet | ✅ own outlet | ✅ all outlets |
+| Vouchers and private follow-ups | ❌ (only their own message) | ❌ | ✅ own outlet, up to RM 20 | ✅ all |
+| Activity log | ❌ | ❌ | ✅ | ✅ |
+| Impact and Improve pages | ❌ | ❌ | ✅ view | ✅ view and change |
+| Team page (add / remove people) | ❌ | ❌ | ❌ | ✅ |
+
+These rules are enforced on the server for every request, not just hidden in the interface.
+
+Vouchers are service recovery and are never tied to posting, editing or removing a public review, and no reply is sent without human approval.
+
+--- | --- |
+| **Collect only what is needed** | Guests give a first name or alias, a 1–5 rating and the review text. No phone number, email or IC is asked for. |
+| **Disclosure to third parties** | Only the outlet name, rating and review text are sent to the AI API. Guest names and team data are never sent, and no data is used to train models. |
+| **Security** | Data is stored in Supabase Postgres with row-level security on and no public access; only our server connects. Team passwords are stored as salted scrypt hashes, never as plain text. Logins use signed sessions that expire after 12 hours. API keys live in Vercel environment variables, never in the code. |
+| **Access limited by role** | Staff, Manager and Owner see and act only on what their role and outlet allow, checked on the server for every action. A removed team member loses access immediately. |
+| **Integrity and accountability** | Every action is written to an append-only activity log that the database itself prevents from being edited or deleted. |
+| **Retention** | In production, reviews would be kept for 12 months, then deleted or anonymised. |
+
+All data in the prototype is synthetic. Vouchers are service recovery and are never tied to posting, editing or removing a public review, and no reply is sent without human approval.
 
 ---
 
