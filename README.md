@@ -104,8 +104,19 @@ The live site sets security headers (CSP, HSTS and others) and scored 125/100 (A
 ## Orbyte Fit and Reuse
 Tenant settings (business type, outlets, team, voucher limit) are data, so the same workflow already runs for a café, a hair salon, a retail shop, a car workshop and a pet care business. Adding another SME type is one new profile of words and templates, not new code paths. Reviews enter through one event (`POST /api/events/review-received`) and leave through one (`reply_posted`) after human approval, so any channel (NFC, QR, Google Business Profile, WhatsApp) can plug in. Details: [docs/interface-assumptions.md](docs/interface-assumptions.md).
 
-## Privacy (PDPA)
-Only a first name or alias, the rating and the review text are collected. Access is limited by role, every action is logged, no customer data is used for model training, and no reply is sent without human approval. Vouchers are service recovery and are never tied to posting, editing or removing a public review.
+## Privacy and Data Protection (PDPA 2010)
+Resolve is designed around Malaysia's Personal Data Protection Act 2010:
+
+| PDPA principle | How Resolve handles it |
+| --- | --- |
+| **Collect only what is needed** | Guests give a first name or alias, a 1–5 rating and the review text. No phone number, email or IC is asked for. |
+| **Disclosure to third parties** | Only the outlet name, rating and review text are sent to the AI API. Guest names and team data are never sent, and no data is used to train models. |
+| **Security** | Data is stored in Supabase Postgres with row-level security on and no public access; only our server connects. Team passwords are stored as salted scrypt hashes, never as plain text. Logins use signed sessions that expire after 12 hours. API keys live in Vercel environment variables, never in the code. |
+| **Access limited by role** | Staff, Manager and Owner see and act only on what their role and outlet allow, checked on the server for every action. A removed team member loses access immediately. |
+| **Integrity and accountability** | Every action is written to an append-only activity log that the database itself prevents from being edited or deleted. |
+| **Retention** | In production, reviews would be kept for 12 months, then deleted or anonymised. |
+
+All data in the prototype is synthetic. Vouchers are service recovery and are never tied to posting, editing or removing a public review, and no reply is sent without human approval.
 
 ---
 
