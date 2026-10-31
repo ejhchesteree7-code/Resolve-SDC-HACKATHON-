@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { profileFor } from "./resolve-business-types";
 import { fallbackAction, suggestedActions } from "./resolve-insights";
+import { samplingFor } from "./resolve-ai";
 
 /**
  * Improvement Checklist.
@@ -103,9 +104,9 @@ async function requestAiFixes(problems: Problem[], businessType: string): Promis
   const user = JSON.stringify(problems.map(p => ({
     category: p.category, complaints: p.count, mostly_on: p.peakDay, outlet: p.outlet, examples: p.examples,
   })));
+  const model = process.env.AI_MODEL || "gpt-4.1-nano";
   const { choices } = await client.chat.completions.create({
-    model: process.env.AI_MODEL || "gpt-4.1-nano",
-    max_tokens: 500, temperature: 0.2,
+    model, ...samplingFor(model, 500, 0.2),
     response_format: { type: "json_object" },
     messages: [{ role: "system", content: system }, { role: "user", content: user }],
   });

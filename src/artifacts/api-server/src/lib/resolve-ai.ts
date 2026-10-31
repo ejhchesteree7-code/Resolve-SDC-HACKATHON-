@@ -275,6 +275,17 @@ function detectFallback(input: ReviewInput): Omit<ReviewClassification, "usedFal
   };
 }
 
+/**
+ * Newer reasoning models (GPT-5/6, o-series) reject a custom temperature and the old
+ * max_tokens field, and spend part of their budget thinking. Older chat models
+ * (gpt-4.1, DeepSeek) take the classic fields. The proxy maps either form.
+ */
+export function samplingFor(model: string, maxTokens: number, temperature: number) {
+  return /^(gpt-[5-9]|o\d)/i.test(model)
+    ? { max_completion_tokens: maxTokens * 4 }
+    : { max_tokens: maxTokens, temperature };
+}
+
 async function requestAiClassification(
   input: ReviewInput,
   onRequestComplete?: (metrics: AiRequestMetrics) => void,
@@ -310,8 +321,7 @@ async function requestAiClassification(
   try {
     const { data: response, response: httpResponse } = await client.chat.completions.create({
       model,
-      max_tokens: 300,
-      temperature: 0,
+      ...samplingFor(model, 300, 0),
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },
