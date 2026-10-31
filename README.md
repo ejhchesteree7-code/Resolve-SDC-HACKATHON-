@@ -26,10 +26,12 @@
 | Customer review page, Mont Kiara (simulated) | https://resolve-sdc-hackathon-src.vercel.app/p/mont-kiara |
 | Register a new business (simulated) | https://resolve-sdc-hackathon-src.vercel.app/register |
 | Interface assumptions (Orbyte, Google, WhatsApp) | [docs/interface-assumptions.md](docs/interface-assumptions.md) |
+| **Grand Final Report (PDF)** | [submission/1. SDC Hackathon_ Submission Template (Finalists) FINALIST.pdf](submission/1.%20SDC%20Hackathon_%20Submission%20Template%20%28Finalists%29%20FINALIST.pdf) |
+| **Grand Final Technical Tools Declaration (PDF)** | [submission/2. SDC Hackathon_ Tech. Tools Declaration Template  FINALIST (Finalist).pdf](submission/2.%20SDC%20Hackathon_%20Tech.%20Tools%20Declaration%20Template%20%20FINALIST%20%28Finalist%29.pdf) |
 | Preliminary Project Proposal (PDF) | [submission/SDC2026_sticksandstones_Preliminary.pdf](submission/SDC2026_sticksandstones_Preliminary.pdf) |
-| Technical Tools Declaration (PDF) | [submission/SDC2026_sticksandstones_TechDeclaration.pdf](submission/SDC2026_sticksandstones_TechDeclaration.pdf) |
-| Slide Deck | [https://github.com/ejhchesteree7-code/Resolve-SDC-HACKATHON-/blob/main/submission/SDC_sticksandstones_slidedeck.pdf] |
-| Demo Video | [https://youtu.be/30II16Fx6RE](https://youtu.be/30II16Fx6RE) |
+| Technical Tools Declaration, Round 1 (PDF) | [submission/SDC2026_sticksandstones_TechDeclaration.pdf](submission/SDC2026_sticksandstones_TechDeclaration.pdf) |
+| Slide Deck, Round 1 | [submission/SDC_sticksandstones_slidedeck.pdf](submission/SDC_sticksandstones_slidedeck.pdf) |
+| Demo Video, Round 1 | [https://youtu.be/30II16Fx6RE](https://youtu.be/30II16Fx6RE) |
 
 ---
 
@@ -59,8 +61,10 @@ Resolve turns every review into a tracked case. It classifies the text (BM, Engl
 13. **Impact page:** measures handling time from real approvals against our manual baseline, approval coverage from the log, and routing accuracy on a labelled test set.
 14. **Improvement checklist:** Resolve counts repeated complaints from the last 30 days, the AI words one concrete fix for each (rules if the AI is off), and the Owner accepts, edits or dismisses it. Once a fix is marked done, Resolve compares complaints per week for that category before and after, so the owner sees whether it worked. The counts always come from the database, never from the AI.
 
-### Results So Far (Our Own Timed Test)
-We timed how long it takes to handle 10 synthetic reviews (a mix of complaints and compliments).
+### Results
+**Grand Final (measured inside the app):** each approval is timed from opening a case to clicking Approve and written into the activity log. Median handling time **12.5 s per review, 82.8% faster** than the 72.5 s manual baseline (target: at least 60%), with **100%** of replies and vouchers carrying a logged human approval. These figures are shown live on the Impact page and change as more cases are handled.
+
+**Phase 1 (our own timed test):** we timed how long it takes to handle 10 synthetic reviews (a mix of complaints and compliments).
 
 | Method | Total for 10 reviews | Per review |
 | --- | --- | --- |
@@ -81,7 +85,7 @@ The live site sets security headers (CSP, HSTS and others) and scored 125/100 (A
 | Frontend | React + Vite + Tailwind CSS |
 | Backend | Node / Express API, deployed as a Vercel serverless function |
 | Database | Supabase Postgres (RLS on with no public policies; the server connects through a pooled connection string) |
-| AI | OpenAI-compatible model for classification and drafting (optional), with a built-in keyword fallback |
+| AI | gpt-5.4-mini through the KrackedDevs OpenAI-compatible API (sponsor credits) for classification, drafting and improvement suggestions, with a built-in keyword fallback (Basic mode) |
 | Build | Replit Agent (first version); Claude Code (later improvements) |
 | Hosting | Vercel |
 
@@ -93,7 +97,7 @@ The live site sets security headers (CSP, HSTS and others) and scored 125/100 (A
 - **Google Business Profile:** the real API needs Google approval, so a simulated public review page stands in for it.
 - **WhatsApp:** the private follow-up is simulated (no message leaves the app, and voucher codes are demo codes). A real version would use the WhatsApp Business Platform with approved message templates and guest opt-in, and would replace only the send step.
 - **Data:** all reviews, names and vouchers are synthetic. Time-saved figures are estimates from our own 10-review timed test (see Results).
-- **AI:** seeded reviews use cached drafts. To avoid API cost, the deployed demo runs new reviews in Basic mode (keyword rules and templates) unless an AI key is configured.
+- **AI:** the live demo uses gpt-5.4-mini for new reviews. The 20 seeded demo reviews are pre-classified (labelled "no live AI call"). If the AI is unavailable, a case shows a "Basic mode" badge and still reaches the right person.
 
 ## Orbyte Fit and Reuse
 Tenant settings (business type, outlets, team, voucher limit) are data, so the same workflow already runs for a café, a hair salon, a retail shop, a car workshop and a pet care business. Adding another SME type is one new profile of words and templates, not new code paths. Reviews enter through one event (`POST /api/events/review-received`) and leave through one (`reply_posted`) after human approval, so any channel (NFC, QR, Google Business Profile, WhatsApp) can plug in. Details: [docs/interface-assumptions.md](docs/interface-assumptions.md).
